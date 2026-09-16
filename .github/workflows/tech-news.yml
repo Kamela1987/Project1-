@@ -1,0 +1,44 @@
+name: Tech news digest
+
+# Every 2 hours. GitHub queues scheduled runs rather than firing them exactly,
+# so a few minutes late at peak times is normal.
+on:
+  schedule:
+    - cron: "0 */2 * * *"
+  workflow_dispatch:          # lets you run it on demand from the GitHub website
+
+concurrency:
+  group: tech-news-digest
+  cancel-in-progress: false
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Fetch and email the digest
+        env:
+          NEWS_EMAIL_TO: ${{ secrets.NEWS_EMAIL_TO }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+        run: python3 tech_news_zambia.py --email
+
+      # Runs even if the email failed, so the digest is still downloadable from the run page.
+      - name: Upload the digest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tech-news-digest
+          path: |
+            digests/latest.txt
+            digests/latest.html
+          retention-days: 14
+          if-no-files-found: ignore
