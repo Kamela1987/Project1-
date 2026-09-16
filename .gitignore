@@ -1,0 +1,13 @@
+# Generated output
+digests/
+tech_news.log
+
+# Secrets - never commit these
+.env
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
