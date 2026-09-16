@@ -14,6 +14,7 @@ import time
 from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from itertools import zip_longest
 from pathlib import Path
 
 import feedparser
@@ -113,6 +114,17 @@ def fetch_devto(tag, limit):
     return entries
 
 
+def round_robin_merge(sources):
+    """Interleave per-source lists so one prolific/stale source can't crowd the rest
+    out before dedupe+limit gets applied."""
+    merged = []
+    for group in zip_longest(*sources):
+        for item in group:
+            if item is not None:
+                merged.append(item)
+    return merged
+
+
 def dedupe(entries):
     seen = set()
     out = []
@@ -129,19 +141,19 @@ def build_section(name, entries, limit):
 
 
 def fetch_digest(max_per_section, hn_count):
-    world = fetch_hn_top(hn_count)
-    for name, url in WORLD_FEEDS:
-        world.extend(fetch_rss(name, url, max_per_section))
+    world = round_robin_merge(
+        [fetch_hn_top(hn_count)]
+        + [fetch_rss(name, url, max_per_section) for name, url in WORLD_FEEDS]
+    )
 
-    africa = []
-    for name, url in AFRICA_ZAMBIA_FEEDS:
-        africa.extend(fetch_rss(name, url, max_per_section))
+    africa = round_robin_merge(
+        [fetch_rss(name, url, max_per_section) for name, url in AFRICA_ZAMBIA_FEEDS]
+    )
 
-    career = []
-    for name, url in CAREER_FEEDS:
-        career.extend(fetch_rss(name, url, max_per_section))
-    for tag in CAREER_DEVTO_TAGS:
-        career.extend(fetch_devto(tag, max_per_section))
+    career = round_robin_merge(
+        [fetch_rss(name, url, max_per_section) for name, url in CAREER_FEEDS]
+        + [fetch_devto(tag, max_per_section) for tag in CAREER_DEVTO_TAGS]
+    )
 
     return [
         build_section("World Tech - Trending Now", world, max_per_section),
@@ -251,6 +263,11 @@ def run_once(args):
 
 def self_test():
     """Exercise the pure formatting pipeline with canned data - no network needed."""
+    merged = round_robin_merge([["a1", "a2", "a3"], ["b1"], ["c1", "c2"]])
+    assert merged == ["a1", "b1", "c1", "a2", "c2", "a3"], (
+        f"round-robin should interleave sources fairly instead of draining one first, got {merged}"
+    )
+
     raw = [
         {"title": "Same Title", "source": "A", "link": "https://a.example"},
         {"title": "same title", "source": "B", "link": "https://b.example"},
