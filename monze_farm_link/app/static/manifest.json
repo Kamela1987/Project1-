@@ -1,0 +1,17 @@
+{
+  "name": "Monze Farm & Market Link",
+  "short_name": "Monze Farm",
+  "description": "Prices, agro-dealers, weather and disease alerts for Monze farmers and traders.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f4f6f4",
+  "theme_color": "#1b5e20",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

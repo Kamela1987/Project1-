@@ -6,8 +6,9 @@ market, with no fast way to know prices, find agro-dealer stock, get a
 planting-window forecast, or warn each other about livestock disease.
 
 Built smartphone-optional on purpose — most of the target users are on
-feature phones, so the **USSD menu is the primary interface**, and the
-JSON API/app is a second way in for people with data.
+feature phones, so the **USSD menu is the primary interface**. For people
+with a smartphone and data, there's also a lightweight, installable mobile
+web app served from the same backend.
 
 ## Features
 
@@ -23,12 +24,17 @@ JSON API/app is a second way in for people with data.
 - **USSD gateway** (`/ussd`) — a menu-driven flow compatible with the
   Africa's Talking USSD API, so anyone can dial in from a basic phone with no
   app install and no data bundle.
+- **Mobile web app** (`/`) — a single-page app for smartphones: tabs for
+  Prices, Dealers, Weather and Alerts, installable to the home screen (PWA
+  manifest + service worker), so it opens and feels like a native app without
+  an app-store listing.
 
 ## Stack
 
 - FastAPI + Pydantic for the API
 - SQLAlchemy + SQLite by default (swap `DATABASE_URL` for Postgres in production)
 - Plain `requests` call to Open-Meteo for weather — free, no key
+- Mobile web app: plain HTML/CSS/JS (`app/static/`), no build step, no framework
 
 ## Running it
 
@@ -38,9 +44,11 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-Then open `http://127.0.0.1:8000/docs` for the interactive API, or POST to
-`/ussd` with Africa's Talking-style form fields (`sessionId`, `phoneNumber`,
-`text`) to simulate a USSD session locally:
+- Open `http://127.0.0.1:8000/` on a phone or browser for the mobile web app.
+  On a phone, "Add to Home Screen" installs it like an app.
+- Open `http://127.0.0.1:8000/docs` for the interactive API docs.
+- POST to `/ussd` with Africa's Talking-style form fields (`sessionId`,
+  `phoneNumber`, `text`) to simulate a USSD session locally:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/ussd -d "sessionId=1&phoneNumber=0977000000&text="
@@ -72,6 +80,8 @@ Open-Meteo call so they don't depend on network access.
 | PATCH  | `/alerts/{id}/verify`         | Mark an alert verified                          |
 | GET    | `/weather/forecast`           | 7-day rain forecast + planting advice for Monze |
 | POST   | `/ussd`                       | USSD webhook (Africa's Talking format)          |
+| GET    | `/health`                     | Health check                                    |
+| GET    | `/`                            | Mobile web app                                  |
 
 ## Why this app first
 
