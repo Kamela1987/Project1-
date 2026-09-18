@@ -113,7 +113,9 @@ already decided on:
 python3 bet_tracker.py parlay --odds 1.149 1.33 1.176 --stake 100
 
 # After placing a bet: log it (result defaults to "pending" until settled)
+# --legs defaults to 1 (a single); pass the leg count for a parlay/accumulator
 python3 bet_tracker.py add "Man City W1" --odds 1.33 --stake 50 --result win
+python3 bet_tracker.py add "3-leg parlay" --odds 3.5 --stake 20 --result win --legs 3
 
 # Any time: see your real win rate and ROI across everything you've logged
 python3 bet_tracker.py report
@@ -136,6 +138,18 @@ rarely is; a negative edge correctly returns a 0% stake rather than a number.
 one, so you can see whether a given month, not just your all-time total, was
 actually profitable; pass `--monthly` to force that table even with one month
 of data.
+
+```bash
+# Compare your logged single bets against your logged parlays
+python3 bet_tracker.py stats
+```
+
+`stats` groups logged bets by `--legs` (1 = single, 2+ = parlay) and reports
+win rate, staked/returned, and ROI for each side by side. Parlays are expected
+to show a lower win rate than singles even when every leg was reasonable -
+that's the odds compounding, not bad luck - so compare ROI, not win rate, to
+see which is actually paying off. Bets logged before `--legs` existed have no
+`legs` column and are treated as singles.
 
 ## Known limits
 

@@ -13,6 +13,8 @@ it does do:
    risk instead of judging it "by feel".
 4. Given odds and YOUR OWN estimated true win probability, size a stake with the
    Kelly criterion - it does not supply that probability, only the sizing math.
+5. Compare your logged single bets against your logged parlays (win rate, ROI),
+   so you can see which is actually working for you rather than guessing.
 
 Nothing here is financial or gambling advice.
 """
@@ -23,7 +25,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-FIELDNAMES = ["date", "description", "odds", "stake", "result", "payout"]
+FIELDNAMES = ["date", "description", "odds", "stake", "result", "payout", "legs"]
 VALID_RESULTS = {"win", "loss", "push", "pending"}
 
 
@@ -69,6 +71,9 @@ def cmd_add(args):
     if args.result not in VALID_RESULTS:
         print(f"--result must be one of {sorted(VALID_RESULTS)}", file=sys.stderr)
         return 1
+    if args.legs < 1:
+        print(f"--legs must be at least 1, got {args.legs}", file=sys.stderr)
+        return 1
 
     stake = args.stake
     odds = args.odds
@@ -86,10 +91,18 @@ def cmd_add(args):
         "stake": stake,
         "result": args.result,
         "payout": payout,
+        "legs": args.legs,
     }
     save_bet(args.csv, row)
     print(f"Logged: {row}")
     return 0
+
+
+def bet_type(bet):
+    """'parlay' when logged with more than one leg, 'single' otherwise. Rows
+    logged before --legs existed have no 'legs' column and default to single."""
+    legs = bet.get("legs") or "1"
+    return "parlay" if int(legs) > 1 else "single"
 
 
 def summarize(settled):
@@ -151,6 +164,47 @@ def cmd_report(args):
             print(
                 f"  {m:<9} {ms['count']:>5} {wlp:>9} {ms['total_staked']:>10.2f} "
                 f"{ms['total_returned']:>10.2f} {ms['profit']:>+10.2f} {ms['roi']:>+7.1f}%"
+            )
+    return 0
+
+
+def cmd_stats(args):
+    bets = load_bets(args.csv)
+    settled = [b for b in bets if b["result"] in ("win", "loss", "push")]
+
+    if not settled:
+        print("No settled bets yet.")
+        return 0
+
+    singles = [b for b in settled if bet_type(b) == "single"]
+    parlays = [b for b in settled if bet_type(b) == "parlay"]
+
+    header = f"  {'':<12} {'Bets':>5} {'W-L-P':>9} {'Win %':>7} {'Staked':>10} {'Returned':>10} {'Profit':>10} {'ROI':>8}"
+    print(header)
+    for label, group in [("Single bets", singles), ("Parlays", parlays)]:
+        if not group:
+            print(f"  {label:<12} (none logged)")
+            continue
+        s = summarize(group)
+        wlp = f"{s['wins']}-{s['losses']}-{s['pushes']}"
+        print(
+            f"  {label:<12} {s['count']:>5} {wlp:>9} {s['win_rate']:>6.1f}% {s['total_staked']:>10.2f} "
+            f"{s['total_returned']:>10.2f} {s['profit']:>+10.2f} {s['roi']:>+7.1f}%"
+        )
+
+    print()
+    if singles and parlays:
+        s_stats, p_stats = summarize(singles), summarize(parlays)
+        print(
+            "Parlays chain independent legs together, so their win rate is expected to run "
+            "lower than singles' even when every leg was individually reasonable - that's "
+            "compounding risk, not bad luck. Compare ROI, not win rate, to judge which is "
+            "actually working for you."
+        )
+        if p_stats["count"] >= 5 and p_stats["roi"] < s_stats["roi"]:
+            print(
+                f"Right now parlays are running {p_stats['roi']:+.1f}% ROI vs singles' "
+                f"{s_stats['roi']:+.1f}% - on this sample, singles are doing better."
             )
     return 0
 
@@ -242,6 +296,11 @@ def self_test():
     feb = summarize([b for b in sample if month_key(b) == "2026-02"])
     assert feb["count"] == 1 and round(feb["profit"], 2) == 5.0
 
+    assert bet_type({"legs": "1"}) == "single"
+    assert bet_type({"legs": "3"}) == "parlay"
+    assert bet_type({}) == "single"  # rows logged before --legs existed
+    assert bet_type({"legs": ""}) == "single"  # blank legs column
+
     _test_csv_edge_cases()
 
     print("self-test OK")
@@ -310,6 +369,10 @@ def build_parser():
     p_add.add_argument("--odds", type=float, required=True)
     p_add.add_argument("--stake", type=float, required=True)
     p_add.add_argument("--result", default="pending", help="win/loss/push/pending (default: pending)")
+    p_add.add_argument(
+        "--legs", type=int, default=1,
+        help="Number of legs combined into this bet (default 1 = single; 2+ = parlay)",
+    )
     p_add.set_defaults(func=cmd_add)
 
     p_report = sub.add_parser("report", help="Show win rate, ROI, totals from the log")
@@ -318,6 +381,9 @@ def build_parser():
         help="Always show the month-by-month breakdown, even with only one month of data",
     )
     p_report.set_defaults(func=cmd_report)
+
+    p_stats = sub.add_parser("stats", help="Compare logged single bets vs parlays (win rate, ROI)")
+    p_stats.set_defaults(func=cmd_stats)
 
     p_parlay = sub.add_parser("parlay", help="Compute combined odds/probability for a set of legs")
     p_parlay.add_argument("--odds", type=float, nargs="+", required=True, help="Decimal odds for each leg")
