@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -19,6 +20,9 @@ import { PaymentsService } from '../payments/payments.service';
 import { LocationService } from '../realtime/location.service';
 import { RatingsService } from '../ratings/ratings.service';
 import { CreateRatingDto } from '../ratings/dto/create-rating.dto';
+import { DisputesService } from '../disputes/disputes.service';
+import { CreateDisputeDto } from '../disputes/dto/create-dispute.dto';
+import { DriversService } from '../drivers/drivers.service';
 import { CompleteTripDto } from './dto/complete-trip.dto';
 import { RequestTripDto } from './dto/request-trip.dto';
 import { TripsService } from './trips.service';
@@ -31,6 +35,8 @@ export class TripsController {
     private readonly paymentsService: PaymentsService,
     private readonly locationService: LocationService,
     private readonly ratingsService: RatingsService,
+    private readonly disputesService: DisputesService,
+    private readonly driversService: DriversService,
   ) {}
 
   @Post()
@@ -49,6 +55,13 @@ export class TripsController {
   @Roles(UserRole.RIDER)
   listMine(@CurrentUser() user: AuthenticatedUser) {
     return this.tripsService.listMine(user.userId);
+  }
+
+  /** Admin's live-monitoring feed. `?status=in_progress` etc. to filter. */
+  @Get()
+  @Roles(UserRole.ADMIN)
+  listAll(@Query('status') status?: TripStatus) {
+    return this.tripsService.listAll(status);
   }
 
   @Get(':id')
@@ -141,5 +154,31 @@ export class TripsController {
   @Get(':id/rating')
   rating(@Param('id') id: string) {
     return this.ratingsService.findByTripId(id);
+  }
+
+  /** Either party on a trip can raise a dispute (fare disagreement, no-show, safety concern); an admin resolves it via DisputesController. */
+  @Post(':id/disputes')
+  @Roles(UserRole.RIDER, UserRole.DRIVER)
+  async raiseDispute(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: CreateDisputeDto,
+  ) {
+    const trip = await this.tripsService.findById(id);
+    const isRider = trip.riderId === user.userId;
+    let isDriver = false;
+    if (!isRider && user.role === UserRole.DRIVER && trip.driverId) {
+      const driver = await this.driversService.getByUserId(user.userId);
+      isDriver = trip.driverId === driver.id;
+    }
+    if (!isRider && !isDriver) {
+      throw new ForbiddenException('Not a participant on this trip');
+    }
+    return this.disputesService.create(id, user.userId, dto);
+  }
+
+  @Get(':id/disputes')
+  disputes(@Param('id') id: string) {
+    return this.disputesService.findByTrip(id);
   }
 }

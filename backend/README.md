@@ -3,8 +3,10 @@
 NestJS + TypeORM/PostgreSQL API implementing
 [`docs/MONZE_RIDE_ARCHITECTURE.md`](../docs/MONZE_RIDE_ARCHITECTURE.md):
 rider requests a trip, a driver accepts, the trip is tracked live via
-WebSocket, the fare is settled either in cash or via mobile money, and the
-rider rates the driver afterward. No admin dashboard yet — that's Phase 3.
+WebSocket, the fare is settled either in cash or via mobile money, the
+rider rates the driver afterward, and an ops team runs driver approval,
+live monitoring, fare configuration, and dispute resolution through the
+[admin dashboard](../admin).
 
 ## How the platform (admin) makes money
 
@@ -121,6 +123,45 @@ correctly rejected with 400, and the aggregate's running average confirmed
 correct across two ratings (5 and 2 stars → 3.5), not just that the field
 exists.
 
+## Admin dashboard & driver approval (Phase 3)
+
+The [`admin/`](../admin) React app is the ops team's front end. It needs
+new backend surface beyond `PATCH /drivers/:driverId/approve` (already
+there since Phase 1): `GET /drivers` (the onboarding queue, filterable by
+`verificationStatus`), `GET /drivers/:driverId` (full profile merged with
+wallet balance and rating — same shape as the driver's own `me/wallet` +
+`me/rating`, just admin-facing), `GET /trips` (every trip, filterable by
+status, for live monitoring), [`src/zones/`](src/zones) +
+[`src/fare-rules/`](src/fare-rules) (zone + per-vehicle-type fare rule CRUD
+— see caveat below), and [`src/disputes/`](src/disputes) (either party on a
+trip can raise one via `POST /trips/:id/rating`'s sibling
+`POST /trips/:id/disputes`; an admin resolves it).
+
+**Security fix that came with this**: `AuthService.verifyOtp` used to trust
+a client-supplied `role: "admin"` on signup — anyone could self-register as
+admin. It now rejects that outright; the only way to create an admin
+account is the out-of-band `npm run seed:admin -- <phone> <name>` script
+(see [`src/scripts/create-admin.ts`](src/scripts/create-admin.ts)), which
+writes directly to the database rather than going through the API.
+
+**Zones/fare rules aren't consumed by trip pricing yet** — fare is still
+manually entered by the driver at completion (unchanged since Phase 1).
+This is a real, working CRUD surface for an admin to configure ahead of
+time, honestly not yet wired into `TripsService.complete()`'s fare
+calculation — that's an automated-fare-estimate feature for a later phase
+(architecture doc §6.3, §9 Phase 4).
+
+Verified end-to-end (not just built): the whole admin surface driven
+through curl against a real Postgres + Redis (self-registration-as-admin
+correctly rejected, onboarding queue → approve → detail view, live trip
+filtering by status, zone/fare-rule CRUD including the duplicate-name and
+duplicate-zone+vehicle-type rejections, a dispute raised by each side of a
+trip and rejected for an uninvolved user, admin resolve), **and** the
+`admin/` React app itself driven through a headless-Chromium Playwright
+script against that same running backend — login, approve a driver via the
+UI, watch the trips table, create/delete a zone and fare rule, and resolve
+a dispute, all confirmed to actually change what's on screen.
+
 ## Running locally
 
 ```bash
@@ -152,7 +193,9 @@ the server console instead of sending an SMS. Exchange it for a JWT with
 | PATCH | `/drivers/online` | driver | Go online/offline (must be approved, and not owing too much commission) |
 | GET | `/drivers/me/wallet` | driver | Own commission balance + ledger history |
 | GET | `/drivers/me/rating` | driver | Own aggregate rating (`{ average, count }`) |
-| PATCH | `/drivers/:driverId/approve` | admin | Approve a driver (stand-in for the Phase 3 admin dashboard) |
+| GET | `/drivers` | admin | Onboarding queue / all drivers (`?status=pending`) |
+| GET | `/drivers/:driverId` | admin | Full driver profile + wallet balance + rating |
+| PATCH | `/drivers/:driverId/approve` | admin | Approve a driver |
 | POST | `/drivers/:driverId/wallet/settlements` | admin | Record a driver paying down commission owed |
 | POST | `/trips` | rider | Request a trip (`paymentMethod`: cash / momo / airtel) |
 | GET | `/trips/available` | driver | List open trip requests |
@@ -162,15 +205,26 @@ the server console instead of sending an SMS. Exchange it for a JWT with
 | PATCH | `/trips/:id/complete` | driver | Complete the trip, record/collect the fare |
 | PATCH | `/trips/:id/cancel` | rider | Cancel a not-yet-started trip |
 | GET | `/trips/mine` | rider | Trip history |
+| GET | `/trips` | admin | Every trip, live-monitoring feed (`?status=in_progress` etc.) |
 | GET | `/trips/:id` | any | Trip detail |
 | GET | `/trips/:id/location` | any | Driver's last-known live position — REST fallback for the WebSocket, `null` if unavailable |
 | GET | `/trips/:id/payment` | any | This trip's payment (status, method) — `null` if not created yet |
 | POST | `/trips/:id/rating` | rider | Rate the driver on a completed trip (once per trip) |
 | GET | `/trips/:id/rating` | any | This trip's rating — `null` if not rated yet |
+| POST | `/trips/:id/disputes` | rider, driver | Raise a dispute on your own trip |
+| GET | `/trips/:id/disputes` | any | This trip's disputes |
 | GET | `/payments/:id` | any | Payment detail by id |
 | POST | `/payments/payout` | driver | Cash out a positive wallet balance to mobile money |
 | POST | `/payments/webhooks/momo` | webhook secret | MTN MoMo provider callback |
 | POST | `/payments/webhooks/airtel` | webhook secret | Airtel Money provider callback |
+| POST | `/zones` | admin | Create a pricing zone |
+| GET | `/zones` | any | List zones |
+| DELETE | `/zones/:id` | admin | Delete a zone (cascades its fare rules) |
+| POST | `/zones/:zoneId/fare-rules` | admin | Add a fare rule for a zone + vehicle type |
+| GET | `/zones/:zoneId/fare-rules` | any | List a zone's fare rules |
+| DELETE | `/fare-rules/:id` | admin | Delete a fare rule |
+| GET | `/disputes` | admin | Dispute inbox (`?status=open`/`resolved`) |
+| PATCH | `/disputes/:id/resolve` | admin | Resolve a dispute with a required note |
 
 ## WebSocket events (`src/realtime/location.gateway.ts`)
 
@@ -187,8 +241,12 @@ Connect with `io(baseUrl, { auth: { token: jwt } })`.
 
 - No PostGIS radius-based matching — `GET /trips/available` just lists all
   open requests, since the Phase 1 driver pool is small (Phase 2+)
-- No admin web dashboard (Phase 3) — driver approval and settlements are
-  single REST calls
+- Zone/fare-rule config isn't consumed by trip pricing yet — see the admin
+  dashboard section above
+- No pagination on `GET /drivers` or `GET /trips` — fine at Monze's scale
+- No audit trail of which admin approved a driver or resolved a dispute —
+  every admin account has the same capabilities today
 - `GET /payments/:id`, `GET /trips/:id/payment`, `GET /trips/:id/location`,
-  and `GET /trips/:id/rating` don't check the caller is actually the
-  trip's rider/driver — fine for this scaffold, not for production
+  `GET /trips/:id/rating`, and `GET /trips/:id/disputes` don't check the
+  caller is actually the trip's rider/driver — fine for this scaffold, not
+  for production

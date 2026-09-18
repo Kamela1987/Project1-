@@ -49,6 +49,15 @@ export class TripsService {
     return this.trips.find({ where: { riderId }, order: { requestedAt: 'DESC' } });
   }
 
+  /** Admin's live-monitoring feed — every trip, optionally filtered by status. */
+  async listAll(status?: TripStatus): Promise<Trip[]> {
+    return this.trips.find({
+      where: status ? { status } : {},
+      order: { requestedAt: 'DESC' },
+      take: 200,
+    });
+  }
+
   async findById(id: string): Promise<Trip> {
     const trip = await this.trips.findOneBy({ id });
     if (!trip) {

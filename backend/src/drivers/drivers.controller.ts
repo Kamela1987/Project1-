@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -6,6 +6,7 @@ import { AuthenticatedUser, CurrentUser } from '../common/current-user.decorator
 import { UserRole } from '../entities/user.entity';
 import { WalletService } from '../wallet/wallet.service';
 import { RatingsService } from '../ratings/ratings.service';
+import { DriverVerificationStatus } from '../entities/driver.entity';
 import { RegisterDriverDto } from './dto/register-driver.dto';
 import { RegisterVehicleDto } from './dto/register-vehicle.dto';
 import { SetOnlineDto } from './dto/set-online.dto';
@@ -63,6 +64,25 @@ export class DriversController {
   async myRating(@CurrentUser() user: AuthenticatedUser) {
     const driver = await this.driversService.getByUserId(user.userId);
     return this.ratingsService.getDriverAggregate(driver.id);
+  }
+
+  /** Onboarding queue by default (`?status=pending`) or every driver. */
+  @Get()
+  @Roles(UserRole.ADMIN)
+  listAll(@Query('status') status?: DriverVerificationStatus) {
+    return this.driversService.listAll(status);
+  }
+
+  /** Single driver's full profile (vehicle, wallet balance, rating) for the admin dashboard's detail view. */
+  @Get(':driverId')
+  @Roles(UserRole.ADMIN)
+  async findById(@Param('driverId') driverId: string) {
+    const driver = await this.driversService.findById(driverId);
+    const [balance, rating] = await Promise.all([
+      this.walletService.getBalance(driverId),
+      this.ratingsService.getDriverAggregate(driverId),
+    ]);
+    return { ...driver, walletBalance: balance, rating };
   }
 
   @Patch(':driverId/approve')

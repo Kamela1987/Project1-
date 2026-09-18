@@ -84,4 +84,12 @@ export class DriversService {
       where: { isOnline: true, verificationStatus: DriverVerificationStatus.APPROVED },
     });
   }
+
+  /** Admin's driver list — the onboarding queue by default (`?status=pending`), or everyone. */
+  async listAll(status?: DriverVerificationStatus): Promise<Driver[]> {
+    return this.drivers.find({
+      where: status ? { verificationStatus: status } : {},
+      relations: ['user', 'vehicle'],
+    });
+  }
 }

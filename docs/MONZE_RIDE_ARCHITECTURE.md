@@ -52,7 +52,7 @@ Design constraints that shape every decision below:
 | Primary database | **PostgreSQL + PostGIS** | PostGIS gives efficient "find nearest driver within radius" geospatial queries without a bespoke matching service. |
 | Live location / matching cache | **Redis** ✅ scaffolded (`backend/src/realtime/location.service.ts` — 60s-TTL cache of each online driver's position) | Sub-second read/write for "where are all online drivers right now," trip-state pub/sub, and the request-matching queue. |
 | Real-time transport | **WebSocket (Socket.IO)** ✅ scaffolded (`backend/src/realtime/location.gateway.ts`), with SMS fallback (not yet built) | Push live driver location and trip status to both apps; when a device drops off data, fall back to SMS for critical state changes (trip accepted, driver arrived, trip completed). |
-| Admin dashboard | **React + TypeScript + Tailwind/shadcn** | Fast to build CRUD-heavy ops screens; same API as the mobile apps. |
+| Admin dashboard | **React + TypeScript + Tailwind** ✅ scaffolded (`admin/`; plain Tailwind rather than shadcn, to keep the dependency footprint small for a scaffold) | Fast to build CRUD-heavy ops screens; same API as the mobile apps. |
 | Payments | **MTN Mobile Money & Airtel Money APIs** (primary) ✅ scaffolded (`backend/src/payments/`, dev-mode simulated — no live provider credentials yet), cash (equally first-class, tracked in-app), card (future/optional via a gateway like Flutterwave/DPO if ever needed) | Matches how money actually moves in Monze today. |
 | Maps | **Landmark-first pickup UX** on top of a map SDK — start with **Google Maps SDK** for reliability/familiarity, keep an **OpenStreetMap + self-hosted tiles** path open as a lower-cost fallback if API costs become a concern at scale | Formal addressing is sparse; the UI should let riders drop a pin and add a landmark note ("blue gate near Monze market") rather than rely on address search. |
 | Push notifications | **Firebase Cloud Messaging** | Free, reliable, works well alongside Flutter. |
@@ -115,6 +115,7 @@ erDiagram
     ZONE ||--o{ FARE_RULE : defines
     DRIVER ||--|| WALLET : owns
     WALLET ||--o{ LEDGER_ENTRY : records
+    TRIP ||--o{ DISPUTE : raised_on
 
     USER {
         uuid id
@@ -176,6 +177,16 @@ erDiagram
         uuid id
         string name
         geography boundary
+    }
+    DISPUTE {
+        uuid id
+        uuid trip_id
+        uuid raised_by_user_id
+        string reason
+        string status "open|resolved"
+        string resolution_note
+        timestamp created_at
+        timestamp resolved_at
     }
     FARE_RULE {
         uuid id
@@ -316,7 +327,7 @@ over-engineering for launch.
 |---|---|
 | **Phase 1 — Core loop** ✅ scaffolded | Rider requests a trip (car, minibus, or motorbike), driver accepts, manual/cash fare, basic trip status tracking. No live GPS yet — just status updates. Code scaffold: [`backend/`](../backend) (NestJS API), [`mobile/rider_app/`](../mobile/rider_app), [`mobile/driver_app/`](../mobile/driver_app). |
 | **Phase 2 — Live tracking, digital payment & ratings** ✅ scaffolded | MTN MoMo / Airtel Money integration ✅ scaffolded ([`backend/src/payments/`](../backend/src/payments) — collections from riders, disbursements/payouts to drivers, dev-mode simulation since no real provider credentials exist yet). Real-time GPS tracking ✅ scaffolded ([`backend/src/realtime/`](../backend/src/realtime) — WebSocket gateway backed by Redis, verified against a real Postgres+Redis+socket client, not just built). Post-trip ratings ✅ scaffolded ([`backend/src/ratings/`](../backend/src/ratings) — one rating per completed trip, rider-only, driver's aggregate exposed via `GET /drivers/me/rating`; verified end-to-end against a real Postgres, including the duplicate/ownership/pre-completion rejections and the running-average math). |
-| **Phase 3 — Ops tooling** | Admin/dispatch dashboard: driver onboarding & approval, zone-based fare configuration, live trip monitoring, dispute handling. |
+| **Phase 3 — Ops tooling** ✅ scaffolded | Admin dashboard ✅ scaffolded ([`admin/`](../admin), React+TypeScript+Tailwind — driver onboarding & approval, live trip monitoring, zone/fare-rule configuration, dispute handling; verified with a Playwright script driving the actual UI against a real running backend, not just built). Ships with a security fix: self-service signup could previously mint an admin account by passing `role: "admin"`; the backend now refuses that, and admin accounts only come from an out-of-band seed script (`backend/src/scripts/create-admin.ts`). Zone/fare-rule config is real CRUD but not yet consumed by trip pricing (still manual, per Phase 1) — that's Phase 4. |
 | **Phase 4 — Scale-out** | Multi-town support, driver earnings/payout automation, loyalty or referral incentives, optional surge pricing if volume justifies it. |
 
 ## 10. Open Questions for Stakeholders

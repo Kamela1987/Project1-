@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { Repository } from 'typeorm';
@@ -35,6 +41,12 @@ export class AuthService {
     if (!user) {
       if (!dto.name) {
         throw new BadRequestException('name is required to register a new user');
+      }
+      // Self-service signup only ever creates riders or drivers. Admin
+      // accounts must be created out-of-band (see scripts/create-admin.ts)
+      // — otherwise anyone could hand themselves the admin role here.
+      if (dto.role === UserRole.ADMIN) {
+        throw new ForbiddenException('Cannot self-register as admin');
       }
       user = this.users.create({
         phoneNumber: dto.phoneNumber,

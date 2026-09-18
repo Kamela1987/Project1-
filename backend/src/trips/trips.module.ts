@@ -7,6 +7,7 @@ import { UsersModule } from '../users/users.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { RatingsModule } from '../ratings/ratings.module';
+import { DisputesModule } from '../disputes/disputes.module';
 import { TripsController } from './trips.controller';
 import { TripsService } from './trips.service';
 
@@ -18,6 +19,7 @@ import { TripsService } from './trips.service';
     PaymentsModule,
     RealtimeModule,
     RatingsModule,
+    DisputesModule,
   ],
   controllers: [TripsController],
   providers: [TripsService],
