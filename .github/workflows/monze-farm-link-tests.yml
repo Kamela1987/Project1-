@@ -1,0 +1,31 @@
+name: Monze Farm & Market Link tests
+
+on:
+  pull_request:
+    paths:
+      - "monze_farm_link/**"
+      - ".github/workflows/monze-farm-link-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "monze_farm_link/**"
+      - ".github/workflows/monze-farm-link-tests.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: monze_farm_link
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest -v
