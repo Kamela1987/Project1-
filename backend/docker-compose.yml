@@ -11,8 +11,8 @@ services:
     volumes:
       - monze_postgres_data:/var/lib/postgresql/data
 
-  # Not wired into the backend yet in Phase 1 (no live tracking/matching
-  # queue). Included now so Phase 2 doesn't need an infra change.
+  # Backs Phase 2 live location tracking (src/realtime/) — a fast,
+  # short-TTL cache of each online driver's last-known position.
   redis:
     image: redis:7-alpine
     restart: unless-stopped

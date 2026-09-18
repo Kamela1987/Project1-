@@ -5,6 +5,7 @@ import { Roles } from '../auth/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../common/current-user.decorator';
 import { UserRole } from '../entities/user.entity';
 import { PaymentsService } from '../payments/payments.service';
+import { LocationService } from '../realtime/location.service';
 import { CompleteTripDto } from './dto/complete-trip.dto';
 import { RequestTripDto } from './dto/request-trip.dto';
 import { TripsService } from './trips.service';
@@ -15,6 +16,7 @@ export class TripsController {
   constructor(
     private readonly tripsService: TripsService,
     private readonly paymentsService: PaymentsService,
+    private readonly locationService: LocationService,
   ) {}
 
   @Post()
@@ -44,6 +46,21 @@ export class TripsController {
   @Get(':id/payment')
   payment(@Param('id') id: string) {
     return this.paymentsService.findByTripId(id);
+  }
+
+  /**
+   * REST fallback for the live-tracking WebSocket (see realtime/location.gateway.ts)
+   * — offline/low-connectivity clients poll this instead. `null` if the
+   * trip has no driver yet, or the driver hasn't reported a position
+   * recently (see LocationService's TTL).
+   */
+  @Get(':id/location')
+  async location(@Param('id') id: string) {
+    const trip = await this.tripsService.findById(id);
+    if (!trip.driverId) {
+      return null;
+    }
+    return this.locationService.getLocation(trip.driverId);
   }
 
   @Patch(':id/accept')

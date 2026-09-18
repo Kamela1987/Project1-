@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/trip.dart';
 import '../services/api_client.dart';
+import '../services/location_tracking_service.dart';
 
 class TripDetailScreen extends StatefulWidget {
   final String tripId;
@@ -12,10 +13,13 @@ class TripDetailScreen extends StatefulWidget {
 
 class _TripDetailScreenState extends State<TripDetailScreen> {
   final _api = ApiClient();
+  late final _locationTracking = LocationTrackingService(_api);
   final _fareController = TextEditingController();
   Trip? _trip;
   bool _loading = false;
   String? _error;
+
+  static const _trackedStatuses = {TripStatus.accepted, TripStatus.arrived, TripStatus.inProgress};
 
   @override
   void initState() {
@@ -23,13 +27,41 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
     _refresh();
   }
 
+  @override
+  void dispose() {
+    _locationTracking.stop();
+    super.dispose();
+  }
+
   Future<void> _refresh() async {
     try {
       final json = await _api.getTrip(widget.tripId);
       if (!mounted) return;
-      setState(() => _trip = Trip.fromJson(json));
+      final trip = Trip.fromJson(json);
+      setState(() => _trip = trip);
+      await _syncTracking(trip.status);
     } catch (e) {
       setState(() => _error = 'Could not load trip: $e');
+    }
+  }
+
+  /// Streams real GPS position while the trip is accepted/arrived/in
+  /// progress (see backend/src/realtime/location.gateway.ts); stops once
+  /// the trip ends. Location permission errors surface as a page banner
+  /// rather than blocking the trip flow — a driver without GPS can still
+  /// work the trip status buttons.
+  Future<void> _syncTracking(TripStatus status) async {
+    if (_trackedStatuses.contains(status)) {
+      if (!_locationTracking.isTracking) {
+        try {
+          await _locationTracking.start(widget.tripId);
+        } catch (e) {
+          if (!mounted) return;
+          setState(() => _error = 'Live location unavailable: $e');
+        }
+      }
+    } else {
+      await _locationTracking.stop();
     }
   }
 
@@ -52,7 +84,24 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
   Widget build(BuildContext context) {
     final trip = _trip;
     return Scaffold(
-      appBar: AppBar(title: const Text('Trip')),
+      appBar: AppBar(
+        title: const Text('Trip'),
+        actions: [
+          if (_locationTracking.isTracking)
+            const Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: Center(
+                child: Row(
+                  children: [
+                    Icon(Icons.gps_fixed, size: 16),
+                    SizedBox(width: 4),
+                    Text('Sharing location'),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
       body: trip == null
           ? const Center(child: CircularProgressIndicator())
           : Padding(

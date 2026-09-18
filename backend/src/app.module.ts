@@ -6,6 +6,7 @@ import { UsersModule } from './users/users.module';
 import { DriversModule } from './drivers/drivers.module';
 import { TripsModule } from './trips/trips.module';
 import { PaymentsModule } from './payments/payments.module';
+import { RealtimeModule } from './realtime/realtime.module';
 import { User } from './entities/user.entity';
 import { Driver } from './entities/driver.entity';
 import { Vehicle } from './entities/vehicle.entity';
@@ -38,6 +39,7 @@ import { LedgerEntry } from './entities/ledger-entry.entity';
     DriversModule,
     TripsModule,
     PaymentsModule,
+    RealtimeModule,
   ],
 })
 export class AppModule {}

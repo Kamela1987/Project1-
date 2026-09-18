@@ -2,9 +2,9 @@
 
 NestJS + TypeORM/PostgreSQL API implementing
 [`docs/MONZE_RIDE_ARCHITECTURE.md`](../docs/MONZE_RIDE_ARCHITECTURE.md):
-rider requests a trip, a driver accepts, the trip is tracked through simple
-status updates, and the fare is settled either in cash or via mobile money.
-No live GPS tracking or admin dashboard yet — those are Phase 3.
+rider requests a trip, a driver accepts, the trip is tracked live via
+WebSocket, and the fare is settled either in cash or via mobile money. No
+admin dashboard or post-trip ratings yet — those are Phase 3.
 
 ## How the platform (admin) makes money
 
@@ -70,11 +70,37 @@ is testable locally. Before this touches real money:
    signature verification, and adapt each provider's actual callback
    payload into the normalized `ProviderCallbackDto` shape.
 
+## Live location tracking (Phase 2)
+
+[`src/realtime/`](src/realtime) adds a WebSocket gateway (Socket.IO) for
+live driver location, backed by the Redis instance `docker-compose.yml`
+provisioned back in Phase 1 for exactly this:
+
+- Driver app connects with `auth: { token: <JWT> }` and emits
+  `driver:location` (`{ tripId, lat, lng }`) while the trip is
+  accepted/arrived/in-progress.
+- Rider (and driver) apps emit `trip:subscribe` (`{ tripId }`) to join that
+  trip's room and receive `driver:location` broadcasts. The gateway checks
+  the caller is actually the trip's rider or its assigned driver before
+  letting them subscribe.
+- A driver's position lives in Redis with a 60s TTL — no Postgres writes on
+  every GPS ping, and a stale/disconnected driver's location naturally
+  expires instead of showing a rider a frozen pin forever.
+- `GET /trips/:id/location` is the REST fallback for the offline/
+  low-connectivity path described in the architecture doc §6.4 — same data,
+  polled instead of pushed.
+
+Verified against a real local Postgres + Redis (not just a build): a driver
+socket streaming a position, a rider socket subscribed to that trip
+receiving the broadcast, the REST endpoint reflecting the same value, a
+bad-token connection getting rejected, and a socket for an uninvolved user
+being refused a subscription.
+
 ## Running locally
 
 ```bash
 cp .env.example .env
-docker compose up -d          # starts Postgres (and Redis, reserved for Phase 2 live tracking)
+docker compose up -d          # starts Postgres and Redis
 npm install
 npm run start:dev
 ```
@@ -111,17 +137,29 @@ the server console instead of sending an SMS. Exchange it for a JWT with
 | PATCH | `/trips/:id/cancel` | rider | Cancel a not-yet-started trip |
 | GET | `/trips/mine` | rider | Trip history |
 | GET | `/trips/:id` | any | Trip detail |
+| GET | `/trips/:id/location` | any | Driver's last-known live position — REST fallback for the WebSocket, `null` if unavailable |
 | GET | `/trips/:id/payment` | any | This trip's payment (status, method) — `null` if not created yet |
 | GET | `/payments/:id` | any | Payment detail by id |
 | POST | `/payments/payout` | driver | Cash out a positive wallet balance to mobile money |
 | POST | `/payments/webhooks/momo` | webhook secret | MTN MoMo provider callback |
 | POST | `/payments/webhooks/airtel` | webhook secret | Airtel Money provider callback |
 
+## WebSocket events (`src/realtime/location.gateway.ts`)
+
+Connect with `io(baseUrl, { auth: { token: jwt } })`.
+
+| Direction | Event | Payload | Notes |
+|---|---|---|---|
+| Client → Server | `trip:subscribe` | `{ tripId }` | Join a trip's room; rejected if you're not its rider or assigned driver |
+| Client → Server | `driver:location` | `{ tripId, lat, lng }` | Driver only; ignored unless the trip is accepted/arrived/in-progress and assigned to them |
+| Server → Client | `driver:location` | `{ tripId, lat, lng, updatedAt }` | Broadcast to the trip's room, and sent immediately on subscribe if a position is already cached |
+| Server → Client | `error` | string | Auth failure or a rejected subscribe/update |
+
 ## What's deliberately not here yet
 
-- No live driver location / WebSocket tracking (Phase 2, remaining)
 - No PostGIS radius-based matching — `GET /trips/available` just lists all
   open requests, since the Phase 1 driver pool is small (Phase 2+)
+- No post-trip ratings (Phase 3)
 - No admin web dashboard (Phase 3) — driver approval and settlements are
   single REST calls
 - `GET /payments/:id` and `GET /trips/:id/payment` don't check the caller

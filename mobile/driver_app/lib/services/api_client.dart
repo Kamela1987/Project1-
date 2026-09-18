@@ -8,6 +8,10 @@ class ApiClient {
     defaultValue: 'http://10.0.2.2:3000',
   );
 
+  static String get baseUrl => _baseUrl;
+
+  Future<String?> currentToken() => _token();
+
   Future<String?> _token() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('accessToken');

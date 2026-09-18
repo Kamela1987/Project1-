@@ -1,8 +1,9 @@
-# Monze Ride — Rider App (Phase 1 scaffold)
+# Monze Ride — Rider App (Phase 1-2 scaffold)
 
-Flutter app implementing the Phase 1 rider flow: log in by phone/OTP,
-request a ride (car, minibus, or motorbike), and track trip status against
-the [backend](../../backend).
+Flutter app implementing the rider flow: log in by phone/OTP, request a
+ride (car, minibus, or motorbike; cash, MTN MoMo, or Airtel Money), track
+trip status and the driver's live location, and watch mobile money payment
+settle, against the [backend](../../backend).
 
 ## Status
 
@@ -19,15 +20,21 @@ flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3000   # Android emulator
 ## What's here
 
 - `lib/screens/login_screen.dart` — phone + OTP login (OTP is logged to the
-  backend console in Phase 1, no real SMS yet)
+  backend console, no real SMS yet)
 - `lib/screens/request_ride_screen.dart` — pickup/dropoff by lat/lng +
-  landmark note, with a car/minibus/motorbike ride-type picker
-- `lib/screens/trip_status_screen.dart` — polls trip status every 5s
-  (no live GPS/WebSocket yet — that's Phase 2)
+  landmark note, with a car/minibus/motorbike ride-type picker and a
+  cash/MoMo/Airtel payment-method picker
+- `lib/screens/trip_status_screen.dart` — polls trip status every 5s (the
+  low-connectivity-friendly baseline), and once a driver is assigned also
+  opens a WebSocket (`lib/services/trip_socket_service.dart`) to
+  `backend/src/realtime/location.gateway.ts` for their live position
+  without waiting for the next poll. Also polls payment status for mobile
+  money trips, since it settles asynchronously.
 - `lib/services/api_client.dart` — thin REST client for the backend
 
-## Known gaps (by design, for Phase 1)
+## Known gaps (by design)
 
-- No map widget — pickup/dropoff are typed coordinates for now
+- No map widget — pickup/dropoff are typed coordinates, and the driver's
+  live position is shown as raw lat/lng, not a pin on a map
 - No push notifications
-- No in-app payment — fare is settled in cash and shown after completion
+- No post-trip ratings (Phase 3)
