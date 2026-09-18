@@ -1,6 +1,7 @@
 # Generated output
 digests/
 tech_news.log
+bets.csv
 
 # Secrets - never commit these
 .env

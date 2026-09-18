@@ -102,6 +102,55 @@ python3 tech_news_zambia.py --self-test            # check the formatting pipeli
 Exit codes for cron/Actions logs: `0` normal, `3` email was requested but failed to
 send, `4` every source failed and the digest came back empty.
 
+## Bet tracker + parlay calculator
+
+`bet_tracker.py` is a small honesty tool, not a picks generator. It does not
+predict outcomes or fetch odds - it only helps you evaluate and log bets you've
+already decided on:
+
+```bash
+# Before betting: see the real combined odds/probability of a multi-leg slip
+python3 bet_tracker.py parlay --odds 1.149 1.33 1.176 --stake 100
+
+# After placing a bet: log it (result defaults to "pending" until settled)
+# --legs defaults to 1 (a single); pass the leg count for a parlay/accumulator
+python3 bet_tracker.py add "Man City W1" --odds 1.33 --stake 50 --result win
+python3 bet_tracker.py add "3-leg parlay" --odds 3.5 --stake 20 --result win --legs 3
+
+# Any time: see your real win rate and ROI across everything you've logged
+python3 bet_tracker.py report
+
+# Size a stake with the Kelly criterion, using YOUR OWN probability estimate
+# (the tool never supplies this number - it's not a prediction engine)
+python3 bet_tracker.py kelly --odds 2.0 --prob 0.55 --bankroll 1000 --fraction 0.5
+```
+
+Bets are stored in `bets.csv` (gitignored, stays local) unless you pass
+`--csv path/to/file.csv`. Run `python3 bet_tracker.py --self-test` to check the
+math and file I/O with no data required.
+
+`kelly` only does the sizing arithmetic once you supply `--prob` (your own
+honest estimate of the true win probability). `--fraction` defaults to 0.5
+(half-Kelly) since full Kelly assumes that estimate is exactly right, which it
+rarely is; a negative edge correctly returns a 0% stake rather than a number.
+
+`report` also breaks results down by month whenever the log spans more than
+one, so you can see whether a given month, not just your all-time total, was
+actually profitable; pass `--monthly` to force that table even with one month
+of data.
+
+```bash
+# Compare your logged single bets against your logged parlays
+python3 bet_tracker.py stats
+```
+
+`stats` groups logged bets by `--legs` (1 = single, 2+ = parlay) and reports
+win rate, staked/returned, and ROI for each side by side. Parlays are expected
+to show a lower win rate than singles even when every leg was reasonable -
+that's the odds compounding, not bad luck - so compare ROI, not win rate, to
+see which is actually paying off. Bets logged before `--legs` existed have no
+`legs` column and are treated as singles.
+
 ## Known limits
 
 - These are free public feeds with no key, so they can rate-limit or go down; a
