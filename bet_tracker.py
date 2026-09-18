@@ -242,18 +242,62 @@ def self_test():
     feb = summarize([b for b in sample if month_key(b) == "2026-02"])
     assert feb["count"] == 1 and round(feb["profit"], 2) == 5.0
 
+    _test_csv_edge_cases()
+
+    print("self-test OK")
+
+
+def _test_csv_edge_cases():
     tmp = Path("/tmp/_bet_tracker_selftest.csv")
     if tmp.exists():
         tmp.unlink()
+
+    # Nonexistent file -> empty list, not an error.
+    assert load_bets(tmp) == []
+
+    # First save creates the file with a header row.
     save_bet(tmp, {
         "date": "2026-01-01", "description": "test", "odds": 2.0,
         "stake": 10.0, "result": "win", "payout": 20.0,
     })
+    header_line = tmp.read_text(encoding="utf-8").splitlines()[0]
+    assert header_line == ",".join(FIELDNAMES)
     loaded = load_bets(tmp)
     assert len(loaded) == 1 and loaded[0]["description"] == "test"
+
+    # Second save appends a row without repeating the header.
+    save_bet(tmp, {
+        "date": "2026-01-02", "description": "second", "odds": 1.5,
+        "stake": 5.0, "result": "loss", "payout": 0.0,
+    })
+    lines = tmp.read_text(encoding="utf-8").splitlines()
+    assert lines.count(header_line) == 1
+    loaded = load_bets(tmp)
+    assert len(loaded) == 2
+    assert [b["description"] for b in loaded] == ["test", "second"]
+
+    # Descriptions containing commas and quotes must round-trip intact -
+    # naive comma-splitting would silently corrupt these.
+    tricky = 'Man City, Chelsea "double" bet'
+    save_bet(tmp, {
+        "date": "2026-01-03", "description": tricky, "odds": 1.2,
+        "stake": 1.0, "result": "pending", "payout": 0.0,
+    })
+    loaded = load_bets(tmp)
+    assert loaded[-1]["description"] == tricky
+
+    # DictReader always returns strings, even for numeric fields - callers
+    # that forget to cast (e.g. via float()) would misbehave silently.
+    assert isinstance(loaded[0]["stake"], str)
+    assert float(loaded[0]["stake"]) == 10.0
+
     tmp.unlink()
 
-    print("self-test OK")
+    # A file with only a header row (no data yet) loads as an empty list,
+    # not an error or a row of blanks.
+    tmp.write_text(",".join(FIELDNAMES) + "\n", encoding="utf-8")
+    assert load_bets(tmp) == []
+    tmp.unlink()
 
 
 def build_parser():
