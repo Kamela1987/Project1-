@@ -9,6 +9,7 @@ import {
 import { User } from './user.entity';
 import { Driver } from './driver.entity';
 import { VehicleType } from './vehicle.entity';
+import { PaymentMethod } from './payment-method.enum';
 
 export enum TripStatus {
   REQUESTED = 'requested',
@@ -70,6 +71,14 @@ export class Trip {
    */
   @Column({ type: 'enum', enum: VehicleType, nullable: true })
   requestedVehicleType?: VehicleType;
+
+  /**
+   * Rider's preferred payment method, set at request time. The driver can
+   * still override it at completion (e.g. rider decides to pay cash at the
+   * door instead) — see CompleteTripDto.
+   */
+  @Column({ type: 'enum', enum: PaymentMethod, default: PaymentMethod.CASH })
+  paymentMethod: PaymentMethod;
 
   @Column({ type: 'enum', enum: TripStatus, default: TripStatus.REQUESTED })
   status: TripStatus;

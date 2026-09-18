@@ -1,5 +1,6 @@
 import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
 import { VehicleType } from '../../entities/vehicle.entity';
+import { PaymentMethod } from '../../entities/payment-method.enum';
 
 export class RequestTripDto {
   @IsNumber()
@@ -26,4 +27,9 @@ export class RequestTripDto {
   @IsOptional()
   @IsEnum(VehicleType)
   requestedVehicleType?: VehicleType;
+
+  /** Defaults to cash. "momo" or "airtel" triggers a mobile money request at trip completion. */
+  @IsOptional()
+  @IsEnum(PaymentMethod)
+  paymentMethod?: PaymentMethod;
 }

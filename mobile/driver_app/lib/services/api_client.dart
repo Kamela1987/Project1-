@@ -77,8 +77,27 @@ class ApiClient {
     return _patch('/trips/$tripId/start', {});
   }
 
-  Future<Map<String, dynamic>> completeTrip(String tripId, double fareAmount) {
-    return _patch('/trips/$tripId/complete', {'fareAmount': fareAmount});
+  Future<Map<String, dynamic>> completeTrip(
+    String tripId,
+    double fareAmount, {
+    String? paymentMethodOverride,
+  }) {
+    return _patch('/trips/$tripId/complete', {
+      'fareAmount': fareAmount,
+      if (paymentMethodOverride != null) 'paymentMethod': paymentMethodOverride,
+    });
+  }
+
+  Future<Map<String, dynamic>?> getTripPayment(String tripId) async {
+    final result = await _getNullable('/trips/$tripId/payment');
+    return result as Map<String, dynamic>?;
+  }
+
+  Future<Map<String, dynamic>> requestPayout({
+    required double amount,
+    required String method,
+  }) {
+    return _post('/payments/payout', {'amount': amount, 'method': method});
   }
 
   Future<Map<String, String>> _headers({bool auth = true}) async {
@@ -117,6 +136,11 @@ class ApiClient {
   Future<List<dynamic>> _getList(String path) async {
     final response = await http.get(Uri.parse('$_baseUrl$path'), headers: await _headers());
     return _decode(response) as List<dynamic>;
+  }
+
+  Future<dynamic> _getNullable(String path) async {
+    final response = await http.get(Uri.parse('$_baseUrl$path'), headers: await _headers());
+    return _decode(response);
   }
 
   dynamic _decode(http.Response response) {

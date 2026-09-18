@@ -70,6 +70,15 @@ export class DriversService {
     return driver;
   }
 
+  /** Used by the payments webhook flow, where all we have is the driver's own id (no user session). */
+  async findById(driverId: string): Promise<Driver> {
+    const driver = await this.drivers.findOne({ where: { id: driverId }, relations: ['vehicle'] });
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+    return driver;
+  }
+
   async findAvailable(): Promise<Driver[]> {
     return this.drivers.find({
       where: { isOnline: true, verificationStatus: DriverVerificationStatus.APPROVED },

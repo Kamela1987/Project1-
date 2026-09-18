@@ -1,10 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../models/payment_method.dart' as pm;
 import '../models/trip.dart';
 import '../services/api_client.dart';
 
 /// Phase 1 status tracking is poll-based, not a live WebSocket stream —
 /// that upgrade lands in Phase 2 alongside live GPS (see architecture doc).
+/// Phase 2 also adds mobile money: once the trip is marked complete, a
+/// momo/airtel payment settles asynchronously, so this screen keeps
+/// polling the payment (not just the trip) until it resolves.
 class TripStatusScreen extends StatefulWidget {
   final String tripId;
   const TripStatusScreen({super.key, required this.tripId});
@@ -16,6 +20,7 @@ class TripStatusScreen extends StatefulWidget {
 class _TripStatusScreenState extends State<TripStatusScreen> {
   final _api = ApiClient();
   Trip? _trip;
+  Map<String, dynamic>? _payment;
   Timer? _poller;
   String? _error;
 
@@ -36,8 +41,18 @@ class _TripStatusScreenState extends State<TripStatusScreen> {
     try {
       final json = await _api.getTrip(widget.tripId);
       if (!mounted) return;
-      setState(() => _trip = Trip.fromJson(json));
-      if (_trip!.status == TripStatus.completed || _trip!.status == TripStatus.cancelled) {
+      final trip = Trip.fromJson(json);
+      setState(() => _trip = trip);
+
+      if (trip.status == TripStatus.completed) {
+        final payment = await _api.getTripPayment(widget.tripId);
+        if (!mounted) return;
+        setState(() => _payment = payment);
+      }
+
+      final paymentSettled = _payment == null || _payment!['status'] != 'pending';
+      if (trip.status == TripStatus.cancelled ||
+          (trip.status == TripStatus.completed && paymentSettled)) {
         _poller?.cancel();
       }
     } catch (e) {
@@ -73,7 +88,10 @@ class _TripStatusScreenState extends State<TripStatusScreen> {
                   Text('Drop-off: ${trip.dropoffLandmark ?? '${trip.dropoffLat}, ${trip.dropoffLng}'}'),
                   if (trip.requestedVehicleType != null)
                     Text('Ride type: ${trip.requestedVehicleType!.label}'),
-                  if (trip.fareAmount != null) Text('Fare: K${trip.fareAmount} (cash)'),
+                  if (trip.fareAmount != null) ...[
+                    Text('Fare: K${trip.fareAmount}'),
+                    _paymentStatusLine(),
+                  ],
                   const SizedBox(height: 24),
                   if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
                   if (trip.status == TripStatus.requested || trip.status == TripStatus.accepted)
@@ -82,5 +100,35 @@ class _TripStatusScreenState extends State<TripStatusScreen> {
               ),
       ),
     );
+  }
+
+  Widget _paymentStatusLine() {
+    final payment = _payment;
+    if (payment == null) {
+      return const Text('Payment: cash');
+    }
+    final method = pm.PaymentMethod.fromApiValue(payment['method'] as String);
+    final status = pm.PaymentStatus.fromApiValue(payment['status'] as String);
+    switch (status) {
+      case pm.PaymentStatus.pending:
+        return Row(
+          children: [
+            const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: 8),
+            Text('Approve the ${method.label} prompt on your phone…'),
+          ],
+        );
+      case pm.PaymentStatus.collected:
+        return Text('Payment: ${method.label} — received', style: const TextStyle(color: Colors.green));
+      case pm.PaymentStatus.failed:
+        return const Text(
+          'Payment failed. Please pay the driver in cash.',
+          style: TextStyle(color: Colors.red),
+        );
+    }
   }
 }

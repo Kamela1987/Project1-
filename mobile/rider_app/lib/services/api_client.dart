@@ -50,6 +50,7 @@ class ApiClient {
     required double dropoffLng,
     String? dropoffLandmark,
     String? requestedVehicleType,
+    String? paymentMethod,
   }) {
     return _post('/trips', {
       'pickupLat': pickupLat,
@@ -59,11 +60,19 @@ class ApiClient {
       'dropoffLng': dropoffLng,
       if (dropoffLandmark != null) 'dropoffLandmark': dropoffLandmark,
       if (requestedVehicleType != null) 'requestedVehicleType': requestedVehicleType,
+      if (paymentMethod != null) 'paymentMethod': paymentMethod,
     });
   }
 
   Future<Map<String, dynamic>> getTrip(String tripId) {
     return _get('/trips/$tripId');
+  }
+
+  /// Returns the payment for a trip, or `null` if it's not been created yet
+  /// (e.g. a cash trip that isn't complete, or a momo request not yet sent).
+  Future<Map<String, dynamic>?> getTripPayment(String tripId) async {
+    final result = await _getNullable('/trips/$tripId/payment');
+    return result as Map<String, dynamic>?;
   }
 
   Future<List<dynamic>> myTrips() async {
@@ -111,6 +120,11 @@ class ApiClient {
   Future<List<dynamic>> _getList(String path) async {
     final response = await http.get(Uri.parse('$_baseUrl$path'), headers: await _headers());
     return _decode(response) as List<dynamic>;
+  }
+
+  Future<dynamic> _getNullable(String path) async {
+    final response = await http.get(Uri.parse('$_baseUrl$path'), headers: await _headers());
+    return _decode(response);
   }
 
   dynamic _decode(http.Response response) {

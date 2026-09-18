@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 
-/// Shows the driver what they owe the platform in commission (Phase 1 is
-/// cash-only, so the driver already holds the fare — this balance is a
-/// debt, not a payout). See backend/README.md "How the platform (admin)
-/// makes money".
+/// Shows the driver's wallet balance: negative means they owe the platform
+/// commission on cash fares already collected; positive means they've
+/// earned net income from mobile money trips (platform held the fare) that
+/// they can cash out. See backend/README.md "How the platform (admin)
+/// makes money" and "Mobile money (Phase 2)".
 class WalletScreen extends StatefulWidget {
   const WalletScreen({super.key});
 
@@ -17,6 +18,7 @@ class _WalletScreenState extends State<WalletScreen> {
   double? _balance;
   List<dynamic> _entries = [];
   String? _error;
+  bool _payingOut = false;
 
   @override
   void initState() {
@@ -37,10 +39,46 @@ class _WalletScreenState extends State<WalletScreen> {
     }
   }
 
+  Future<void> _payout() async {
+    final balance = _balance;
+    if (balance == null || balance <= 0) return;
+    final method = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Cash out via'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'momo'),
+            child: const Text('MTN MoMo'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'airtel'),
+            child: const Text('Airtel Money'),
+          ),
+        ],
+      ),
+    );
+    if (method == null) return;
+
+    setState(() {
+      _payingOut = true;
+      _error = null;
+    });
+    try {
+      await _api.requestPayout(amount: balance, method: method);
+      await _refresh();
+    } catch (e) {
+      setState(() => _error = 'Payout failed: $e');
+    } finally {
+      setState(() => _payingOut = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final balance = _balance;
     final owed = balance != null && balance < 0;
+    final canPayout = balance != null && balance > 0;
     return Scaffold(
       appBar: AppBar(title: const Text('My wallet')),
       body: RefreshIndicator(
@@ -70,6 +108,14 @@ class _WalletScreenState extends State<WalletScreen> {
                     'Going online is blocked once you owe more than K100.',
                   ),
                 ),
+              if (canPayout)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: FilledButton(
+                    onPressed: _payingOut ? null : _payout,
+                    child: const Text('Cash out to mobile money'),
+                  ),
+                ),
               const Divider(height: 32),
               const Text('Recent activity', style: TextStyle(fontWeight: FontWeight.bold)),
               for (final entry in _entries)
@@ -97,7 +143,9 @@ class _WalletScreenState extends State<WalletScreen> {
       case 'settlement':
         return 'Settlement paid';
       case 'trip_earning':
-        return 'Trip earning';
+        return 'Trip earning (mobile money)';
+      case 'payout':
+        return 'Cashed out';
       default:
         return type;
     }

@@ -1,19 +1,15 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { Trip } from './trip.entity';
+import { PaymentMethod, PaymentStatus } from './payment-method.enum';
 
-export enum PaymentMethod {
-  CASH = 'cash',
-  MOMO = 'momo',
-  AIRTEL = 'airtel',
-}
+export { PaymentMethod, PaymentStatus };
 
-export enum PaymentStatus {
-  PENDING = 'pending',
-  COLLECTED = 'collected',
-  FAILED = 'failed',
-}
-
-/** Phase 1 only supports `cash`, recorded by the driver at trip completion. */
+/**
+ * Cash is recorded synchronously by the driver at trip completion.
+ * Mobile money (`momo`/`airtel`) starts `pending` — the platform requests
+ * payment from the rider's phone and a provider webhook (or, in dev mode,
+ * a timer — see src/payments/) resolves it to `collected` or `failed`.
+ */
 @Entity('payments')
 export class Payment {
   @PrimaryGeneratedColumn('uuid')
@@ -26,6 +22,10 @@ export class Payment {
   @Column({ name: 'trip_id', unique: true })
   tripId: string;
 
+  /** Denormalized so the async payment webhook can credit the right driver's wallet without re-deriving it from the trip. */
+  @Column({ name: 'driver_id', nullable: true })
+  driverId?: string;
+
   @Column({ type: 'enum', enum: PaymentMethod, default: PaymentMethod.CASH })
   method: PaymentMethod;
 
@@ -34,6 +34,10 @@ export class Payment {
 
   @Column('decimal', { precision: 10, scale: 2 })
   amount: string;
+
+  /** MTN MoMo / Airtel Money transaction reference, once known. */
+  @Column({ nullable: true })
+  providerReference?: string;
 
   @CreateDateColumn()
   createdAt: Date;

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../models/payment_method.dart' as pm;
 import '../models/vehicle_type.dart';
 import '../services/api_client.dart';
 import 'trip_status_screen.dart';
@@ -22,6 +23,7 @@ class _RequestRideScreenState extends State<RequestRideScreen> {
   final _dropoffLngController = TextEditingController();
   final _dropoffLandmarkController = TextEditingController();
   VehicleType? _vehicleType;
+  pm.PaymentMethod _paymentMethod = pm.PaymentMethod.cash;
   bool _loading = false;
   String? _error;
 
@@ -43,6 +45,7 @@ class _RequestRideScreenState extends State<RequestRideScreen> {
             ? null
             : _dropoffLandmarkController.text.trim(),
         requestedVehicleType: _vehicleType?.apiValue,
+        paymentMethod: _paymentMethod.apiValue,
       );
       if (!mounted) return;
       Navigator.of(context).push(
@@ -92,6 +95,19 @@ class _RequestRideScreenState extends State<RequestRideScreen> {
                     label: Text(type.label),
                     selected: _vehicleType == type,
                     onSelected: (_) => setState(() => _vehicleType = type),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            const Text('Payment method', style: TextStyle(fontWeight: FontWeight.bold)),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final method in pm.PaymentMethod.values)
+                  ChoiceChip(
+                    label: Text(method.label),
+                    selected: _paymentMethod == method,
+                    onSelected: (_) => setState(() => _paymentMethod = method),
                   ),
               ],
             ),

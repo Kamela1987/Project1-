@@ -4,6 +4,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../common/current-user.decorator';
 import { UserRole } from '../entities/user.entity';
+import { PaymentsService } from '../payments/payments.service';
 import { CompleteTripDto } from './dto/complete-trip.dto';
 import { RequestTripDto } from './dto/request-trip.dto';
 import { TripsService } from './trips.service';
@@ -11,7 +12,10 @@ import { TripsService } from './trips.service';
 @Controller('trips')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class TripsController {
-  constructor(private readonly tripsService: TripsService) {}
+  constructor(
+    private readonly tripsService: TripsService,
+    private readonly paymentsService: PaymentsService,
+  ) {}
 
   @Post()
   @Roles(UserRole.RIDER)
@@ -34,6 +38,12 @@ export class TripsController {
   @Get(':id')
   findById(@Param('id') id: string) {
     return this.tripsService.findById(id);
+  }
+
+  /** For mobile-money trips: lets the rider/driver poll whether the payment collected. `null` for a trip that isn't there yet (still in progress). */
+  @Get(':id/payment')
+  payment(@Param('id') id: string) {
+    return this.paymentsService.findByTripId(id);
   }
 
   @Patch(':id/accept')

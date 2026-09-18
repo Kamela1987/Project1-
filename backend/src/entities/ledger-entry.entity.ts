@@ -7,12 +7,13 @@ export enum LedgerEntryType {
   /** A driver paying down what they owe the platform; always positive. */
   SETTLEMENT = 'settlement',
   /**
-   * What the platform owes the driver for a trip paid by mobile money
-   * (platform holds the fare, owes the driver their net share). Not
-   * produced by any flow yet — Phase 1 is cash-only — but modeled now so
-   * Phase 2's mobile-money payout doesn't need a schema change.
+   * What the platform owes the driver for a trip paid by mobile money —
+   * the platform holds the fare and credits the driver's wallet with
+   * their net share (fare minus commission), payable out on request.
    */
   TRIP_EARNING = 'trip_earning',
+  /** A driver cashing out a positive wallet balance to their mobile money account. */
+  PAYOUT = 'payout',
 }
 
 /** Append-only audit trail behind Wallet.balance. */

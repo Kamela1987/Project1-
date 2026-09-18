@@ -3,9 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Trip, TripStatus } from '../entities/trip.entity';
 import { TripStatusEvent } from '../entities/trip-status-event.entity';
-import { Payment, PaymentMethod, PaymentStatus } from '../entities/payment.entity';
+import { PaymentMethod } from '../entities/payment-method.enum';
 import { DriversService } from '../drivers/drivers.service';
-import { WalletService } from '../wallet/wallet.service';
+import { UsersService } from '../users/users.service';
+import { PaymentsService } from '../payments/payments.service';
 import { RequestTripDto } from './dto/request-trip.dto';
 import { CompleteTripDto } from './dto/complete-trip.dto';
 
@@ -20,9 +21,9 @@ export class TripsService {
   constructor(
     @InjectRepository(Trip) private readonly trips: Repository<Trip>,
     @InjectRepository(TripStatusEvent) private readonly events: Repository<TripStatusEvent>,
-    @InjectRepository(Payment) private readonly payments: Repository<Payment>,
     private readonly driversService: DriversService,
-    private readonly walletService: WalletService,
+    private readonly usersService: UsersService,
+    private readonly paymentsService: PaymentsService,
   ) {}
 
   async request(riderId: string, dto: RequestTripDto): Promise<Trip> {
@@ -95,23 +96,33 @@ export class TripsService {
     const saved = await this.trips.save(trip);
     await this.recordEvent(tripId, TripStatus.COMPLETED);
 
-    const payment = this.payments.create({
-      tripId,
-      method: PaymentMethod.CASH,
-      status: PaymentStatus.COLLECTED,
-      amount: trip.fareAmount,
-    });
-    await this.payments.save(payment);
+    // Rider can switch payment method at the door (dto.paymentMethod);
+    // otherwise honor what they requested with.
+    const paymentMethod = dto.paymentMethod ?? trip.paymentMethod;
 
-    // Platform's cut of the cash fare the driver just collected — see
-    // docs/MONZE_RIDE_ARCHITECTURE.md §10 (commission model) and
-    // src/config/commission.config.ts for the rates by vehicle type.
-    await this.walletService.applyTripCommission(
-      driver.id,
-      tripId,
-      dto.fareAmount,
-      driver.vehicle?.type,
-    );
+    if (paymentMethod === PaymentMethod.CASH) {
+      // Settled immediately: driver already has the cash, platform's
+      // commission is recorded as a debt (see WalletService.applyTripCommission
+      // and docs/MONZE_RIDE_ARCHITECTURE.md §10).
+      await this.paymentsService.recordCashPayment(
+        tripId,
+        driver.id,
+        dto.fareAmount,
+        driver.vehicle?.type,
+      );
+    } else {
+      // Mobile money: trip is over, but payment settles asynchronously —
+      // see PaymentsService.initiateMobileMoneyPayment and the
+      // /payments/webhooks/* callback that resolves it.
+      const rider = await this.usersService.findById(trip.riderId);
+      await this.paymentsService.initiateMobileMoneyPayment(
+        tripId,
+        driver.id,
+        rider.phoneNumber,
+        dto.fareAmount,
+        paymentMethod,
+      );
+    }
 
     return saved;
   }
