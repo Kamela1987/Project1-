@@ -1,0 +1,67 @@
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Driver, DriverVerificationStatus } from '../entities/driver.entity';
+import { Vehicle } from '../entities/vehicle.entity';
+import { RegisterDriverDto } from './dto/register-driver.dto';
+import { RegisterVehicleDto } from './dto/register-vehicle.dto';
+
+@Injectable()
+export class DriversService {
+  constructor(
+    @InjectRepository(Driver) private readonly drivers: Repository<Driver>,
+    @InjectRepository(Vehicle) private readonly vehicles: Repository<Vehicle>,
+  ) {}
+
+  async register(userId: string, dto: RegisterDriverDto): Promise<Driver> {
+    const existing = await this.drivers.findOneBy({ userId });
+    if (existing) {
+      throw new ConflictException('Driver profile already exists for this user');
+    }
+    const driver = this.drivers.create({
+      userId,
+      licenseNumber: dto.licenseNumber,
+      verificationStatus: DriverVerificationStatus.PENDING,
+    });
+    return this.drivers.save(driver);
+  }
+
+  async registerVehicle(userId: string, dto: RegisterVehicleDto): Promise<Vehicle> {
+    const driver = await this.getByUserId(userId);
+    const vehicle = this.vehicles.create({ driverId: driver.id, ...dto });
+    return this.vehicles.save(vehicle);
+  }
+
+  async setOnline(userId: string, isOnline: boolean): Promise<Driver> {
+    const driver = await this.getByUserId(userId);
+    if (isOnline && driver.verificationStatus !== DriverVerificationStatus.APPROVED) {
+      throw new BadRequestException('Driver is not yet approved to go online');
+    }
+    driver.isOnline = isOnline;
+    return this.drivers.save(driver);
+  }
+
+  /** Phase 1 stand-in for the admin dashboard's driver-approval screen (Phase 3). */
+  async approve(driverId: string): Promise<Driver> {
+    const driver = await this.drivers.findOneBy({ id: driverId });
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+    driver.verificationStatus = DriverVerificationStatus.APPROVED;
+    return this.drivers.save(driver);
+  }
+
+  async getByUserId(userId: string): Promise<Driver> {
+    const driver = await this.drivers.findOneBy({ userId });
+    if (!driver) {
+      throw new NotFoundException('Driver profile not found; register as a driver first');
+    }
+    return driver;
+  }
+
+  async findAvailable(): Promise<Driver[]> {
+    return this.drivers.find({
+      where: { isOnline: true, verificationStatus: DriverVerificationStatus.APPROVED },
+    });
+  }
+}

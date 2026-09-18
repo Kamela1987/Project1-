@@ -1,0 +1,135 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import '../models/trip.dart';
+import '../services/api_client.dart';
+import 'trip_detail_screen.dart';
+
+class TripsScreen extends StatefulWidget {
+  const TripsScreen({super.key});
+
+  @override
+  State<TripsScreen> createState() => _TripsScreenState();
+}
+
+class _TripsScreenState extends State<TripsScreen> {
+  final _api = ApiClient();
+  List<Trip> _trips = [];
+  bool _isOnline = false;
+  bool _isApproved = false;
+  String? _error;
+  Timer? _poller;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMe();
+    _poller = Timer.periodic(const Duration(seconds: 5), (_) => _refreshTrips());
+  }
+
+  @override
+  void dispose() {
+    _poller?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadMe() async {
+    try {
+      final me = await _api.me();
+      setState(() {
+        _isOnline = me['isOnline'] as bool;
+        _isApproved = me['verificationStatus'] == 'approved';
+      });
+      _refreshTrips();
+    } catch (e) {
+      setState(() => _error = 'Could not load driver profile: $e');
+    }
+  }
+
+  Future<void> _refreshTrips() async {
+    if (!_isOnline) return;
+    try {
+      final json = await _api.availableTrips();
+      if (!mounted) return;
+      setState(() => _trips = json.map((t) => Trip.fromJson(t as Map<String, dynamic>)).toList());
+    } catch (e) {
+      setState(() => _error = 'Could not load trips: $e');
+    }
+  }
+
+  Future<void> _toggleOnline(bool value) async {
+    try {
+      await _api.setOnline(value);
+      setState(() => _isOnline = value);
+      _refreshTrips();
+    } catch (e) {
+      setState(() => _error = 'Could not go ${value ? 'online' : 'offline'}: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Available trips'),
+        actions: [
+          if (_isApproved)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Row(
+                children: [
+                  Text(_isOnline ? 'Online' : 'Offline'),
+                  Switch(value: _isOnline, onChanged: _toggleOnline),
+                ],
+              ),
+            ),
+        ],
+      ),
+      body: !_isApproved
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'Your driver profile is pending approval. '
+                  'You can go online once an admin approves your account.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            )
+          : !_isOnline
+              ? const Center(child: Text('Go online to see trip requests'))
+              : RefreshIndicator(
+                  onRefresh: _refreshTrips,
+                  child: _trips.isEmpty
+                      ? ListView(
+                          children: const [
+                            Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Center(child: Text('No trip requests right now')),
+                            ),
+                          ],
+                        )
+                      : ListView.builder(
+                          itemCount: _trips.length,
+                          itemBuilder: (context, index) {
+                            final trip = _trips[index];
+                            return ListTile(
+                              title: Text(trip.pickupLandmark ?? 'Pickup at ${trip.pickupLat}, ${trip.pickupLng}'),
+                              subtitle: Text('To: ${trip.dropoffLandmark ?? '${trip.dropoffLat}, ${trip.dropoffLng}'}'),
+                              trailing: trip.requestedVehicleType != null
+                                  ? Chip(label: Text(trip.requestedVehicleType!))
+                                  : null,
+                              onTap: () async {
+                                await Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => TripDetailScreen(tripId: trip.id),
+                                  ),
+                                );
+                                _refreshTrips();
+                              },
+                            );
+                          },
+                        ),
+                ),
+    );
+  }
+}

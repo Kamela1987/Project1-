@@ -7,14 +7,23 @@
 "An app like Yango" usually conjures Yango's full continental platform — rides,
 deliveries, groceries, dynamic surge pricing, thousands of drivers. That is
 the wrong target for Monze. Monze is a small town (roughly 50,000 people in
-the urban area), served today by minibuses and a modest pool of private-hire
-taxi drivers who mostly get hailed by phone call or roadside flag-down.
+the urban area), served today by minibuses, a modest pool of private-hire
+taxi drivers, and a fast-growing number of motorbike taxis (boda-bodas) who
+mostly get hailed by phone call or roadside flag-down.
 
 The right product is a **focused on-demand ride app**: a rider taps "request
-a ride," the nearest available driver (car or minibus) accepts, both sides
-track the trip live, and payment happens by cash or mobile money. It should
-feel like Yango's core ride flow, stripped of everything that only makes
-sense at national/continental scale.
+a ride," the nearest available driver — car, minibus, **or motorbike**
+— accepts, both sides track the trip live, and payment happens by cash or
+mobile money. It should feel like Yango's core ride flow, stripped of
+everything that only makes sense at national/continental scale.
+
+Motorbikes deserve explicit product support, not a bolt-on: they are cheaper
+per trip, faster through town congestion and market-day crowds, and able to
+reach unpaved or narrow roads a car can't — which fits Monze's road network
+better than a car-only model. Modeling them as a first-class vehicle type
+from day one (see the data model in §5) also gives the platform a natural
+lower-cost tier for price-sensitive riders and an easy entry point for
+motorbike owners who couldn't otherwise afford to join as drivers.
 
 Design constraints that shape every decision below:
 
@@ -124,7 +133,7 @@ erDiagram
     VEHICLE {
         uuid id
         uuid driver_id
-        string type "sedan|minibus"
+        string type "sedan|minibus|motorbike"
         string plate_number
         string photo_url
     }
@@ -135,6 +144,7 @@ erDiagram
         geography pickup_point
         string pickup_landmark
         geography dropoff_point
+        string requested_vehicle_type "sedan|minibus|motorbike|null=any"
         string status
         decimal fare_amount
         timestamp requested_at
@@ -167,6 +177,7 @@ erDiagram
     FARE_RULE {
         uuid id
         uuid zone_id
+        string vehicle_type "sedan|minibus|motorbike"
         decimal base_fare
         decimal per_km_rate
         decimal per_min_rate
@@ -233,13 +244,17 @@ surge, since Monze's market doesn't have the volume to make surge
 meaningful — and transparent pricing builds trust in a new market:
 
 ```
-fare = zone.base_fare
-     + (distance_km * zone.per_km_rate)
-     + (est_duration_min * zone.per_min_rate)
+fare = fare_rule(zone, vehicle_type).base_fare
+     + (distance_km * fare_rule(zone, vehicle_type).per_km_rate)
+     + (est_duration_min * fare_rule(zone, vehicle_type).per_min_rate)
 ```
 
 Zones let the admin team set different base rates for, e.g., town-center
 trips vs. trips to outlying areas, without needing a dynamic pricing engine.
+Fare rules are keyed by **zone + vehicle type**, so motorbike trips can be
+priced noticeably below car trips (reflecting real running costs and giving
+riders an affordable option) without any special-casing in the pricing
+logic itself.
 
 ### 6.4 Offline / low-connectivity degradation
 
@@ -296,7 +311,7 @@ over-engineering for launch.
 
 | Phase | Scope |
 |---|---|
-| **Phase 1 — Core loop** | Rider requests a trip, driver accepts, manual/cash fare, basic trip status tracking. No live GPS yet — just status updates. |
+| **Phase 1 — Core loop** ✅ scaffolded | Rider requests a trip (car, minibus, or motorbike), driver accepts, manual/cash fare, basic trip status tracking. No live GPS yet — just status updates. Code scaffold: [`backend/`](../backend) (NestJS API), [`mobile/rider_app/`](../mobile/rider_app), [`mobile/driver_app/`](../mobile/driver_app). |
 | **Phase 2 — Live & digital payment** | Real-time GPS tracking during trips, MTN MoMo / Airtel Money integration, post-trip ratings. |
 | **Phase 3 — Ops tooling** | Admin/dispatch dashboard: driver onboarding & approval, zone-based fare configuration, live trip monitoring, dispute handling. |
 | **Phase 4 — Scale-out** | Multi-town support, driver earnings/payout automation, loyalty or referral incentives, optional surge pricing if volume justifies it. |
@@ -305,6 +320,7 @@ over-engineering for launch.
 
 - **Driver supply model:** independent owner-operators applying individually, or onboarding via existing minibus/taxi associations in bulk?
 - **Regulatory:** what licensing or permit requirements does the Monze Municipal Council (or national transport regulator) impose on app-based dispatch — is a permit or registration needed before launch?
-- **Vehicle types:** should minibuses (shared, fixed-route-ish) and private taxis (point-to-point) be modeled as the same "trip" concept, or do they need materially different booking flows?
+- **Vehicle types:** motorbikes, cars, and minibuses are now all modeled as point-to-point trips with the same status flow (see §5, §9) — is that right, or do shared/fixed-route minibus trips need a materially different booking flow (e.g. multiple riders per trip)?
+- **Motorbike safety:** should the app require proof of a helmet policy or basic rider-safety training before approving a motorbike driver, given the higher injury risk of that vehicle type?
 - **Commission model:** what percentage (if any) does the platform take per trip, and how is it collected given the cash-heavy payment mix?
 - **Emergency/safety features:** is an SOS button, trip-sharing with a contact, or driver background-check requirement needed for launch, or can it wait for Phase 2/3?

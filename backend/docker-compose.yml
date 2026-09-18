@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: monze
+      POSTGRES_PASSWORD: monze
+      POSTGRES_DB: monze_ride
+    ports:
+      - "5432:5432"
+    volumes:
+      - monze_postgres_data:/var/lib/postgresql/data
+
+  # Not wired into the backend yet in Phase 1 (no live tracking/matching
+  # queue). Included now so Phase 2 doesn't need an infra change.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+volumes:
+  monze_postgres_data:
