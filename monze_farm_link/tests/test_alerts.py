@@ -10,6 +10,7 @@ def test_report_alert_defaults_to_unverified(client):
     assert response.status_code == 201
     body = response.json()
     assert body["verified"] is False
+    assert body["created_at"].endswith("Z")
 
 
 def test_list_alerts_verified_only_filter(client):

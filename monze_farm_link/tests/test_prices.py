@@ -10,6 +10,17 @@ def test_submit_price_creates_commodity_and_report(client):
     assert body["source"] == "app"
 
 
+def test_created_at_is_unambiguous_utc(client):
+    """A naive timestamp with no offset gets parsed as local time by browser
+    JS, silently shifting "just now" by the viewer's UTC offset. Every
+    timestamp the API returns must end in "Z" so that never happens."""
+    response = client.post(
+        "/prices",
+        json={"commodity": "maize", "price_kwacha": 350, "reporter_phone": "0977123456"},
+    )
+    assert response.json()["created_at"].endswith("Z")
+
+
 def test_submit_price_rejects_non_positive_price(client):
     response = client.post(
         "/prices",

@@ -1,6 +1,21 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
+
+
+def _as_utc_iso(dt: datetime) -> str:
+    """Serialize a datetime as an unambiguous UTC ISO8601 string (with "Z").
+
+    SQLite drops timezone info on round-trip, so values read back from the
+    database are naive - but every datetime this app stores was produced by
+    utcnow(), so a naive value here is always already UTC. Without this, a
+    naive ISO string with no offset gets parsed by JS `new Date(...)` as
+    local time in the browser, silently shifting "just now" by the
+    viewer's UTC offset (e.g. 2 hours off in Zambia).
+    """
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 class CommodityOut(BaseModel):
@@ -28,6 +43,10 @@ class PriceReportOut(BaseModel):
     source: str
     created_at: datetime
 
+    @field_serializer("created_at")
+    def _serialize_created_at(self, dt: datetime) -> str:
+        return _as_utc_iso(dt)
+
 
 class PriceAverageOut(BaseModel):
     commodity: str
@@ -53,6 +72,10 @@ class AgroDealerOut(BaseModel):
     stock_status: str
     updated_at: datetime
 
+    @field_serializer("updated_at")
+    def _serialize_updated_at(self, dt: datetime) -> str:
+        return _as_utc_iso(dt)
+
 
 class DiseaseAlertIn(BaseModel):
     disease: str
@@ -70,3 +93,7 @@ class DiseaseAlertOut(BaseModel):
     reporter_phone: str
     verified: bool
     created_at: datetime
+
+    @field_serializer("created_at")
+    def _serialize_created_at(self, dt: datetime) -> str:
+        return _as_utc_iso(dt)

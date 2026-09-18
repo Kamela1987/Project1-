@@ -9,7 +9,9 @@ def test_add_and_list_dealer(client):
         },
     )
     assert response.status_code == 201
-    dealer_id = response.json()["id"]
+    created = response.json()
+    dealer_id = created["id"]
+    assert created["updated_at"].endswith("Z")
 
     response = client.get("/dealers")
     assert response.status_code == 200
