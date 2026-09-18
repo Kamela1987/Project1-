@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<meta name="theme-color" content="#1b5e20" />
+<title>Monze Farm &amp; Market Link</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="icon.svg" />
+<style>
+  :root {
+    --green: #1b5e20;
+    --green-light: #2e7d32;
+    --amber: #e65100;
+    --bg: #f4f6f4;
+    --card: #ffffff;
+    --text: #1a1a1a;
+    --muted: #666;
+    --border: #e0e0e0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding-bottom: 72px;
+  }
+  header {
+    background: var(--green);
+    color: white;
+    padding: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header h1 {
+    margin: 0;
+    font-size: 1.15rem;
+  }
+  header p {
+    margin: 2px 0 0;
+    font-size: 0.8rem;
+    opacity: 0.85;
+  }
+  main {
+    padding: 12px;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+  section { display: none; }
+  section.active { display: block; }
+  .card {
+    background: var(--card);
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .card h2 {
+    margin: 0 0 10px;
+    font-size: 1rem;
+    color: var(--green);
+  }
+  label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin: 8px 0 4px;
+  }
+  input, select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 1rem;
+    background: #fafafa;
+  }
+  button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 12px;
+    border: none;
+    border-radius: 8px;
+    background: var(--green);
+    color: white;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+  button:active { background: var(--green-light); }
+  .list-item {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+  }
+  .list-item:last-child { border-bottom: none; }
+  .list-item .meta { color: var(--muted); font-size: 0.78rem; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+  .badge.unverified { background: #fff3e0; color: var(--amber); }
+  .badge.verified { background: #e8f5e9; color: var(--green); }
+  .status { font-size: 0.85rem; margin-top: 8px; min-height: 1.2em; }
+  .status.error { color: #c62828; }
+  .status.ok { color: var(--green); }
+  .empty { color: var(--muted); font-size: 0.85rem; padding: 8px 0; }
+  nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    background: white;
+    border-top: 1px solid var(--border);
+    z-index: 10;
+  }
+  nav button {
+    flex: 1;
+    background: none;
+    color: var(--muted);
+    border-radius: 0;
+    margin: 0;
+    padding: 10px 4px 8px;
+    font-size: 0.72rem;
+    font-weight: 500;
+  }
+  nav button .icon { display: block; font-size: 1.25rem; margin-bottom: 2px; }
+  nav button.active { color: var(--green); font-weight: 700; }
+  .offline-banner {
+    display: none;
+    background: #fff3e0;
+    color: #e65100;
+    padding: 8px 16px;
+    font-size: 0.8rem;
+    text-align: center;
+  }
+  .offline-banner.show { display: block; }
+</style>
+</head>
+<body>
+
+<div id="offlineBanner" class="offline-banner">You're offline — showing last-loaded data. Actions will fail until you're back online.</div>
+
+<header>
+  <h1>Monze Farm &amp; Market Link</h1>
+  <p>Prices, dealers, weather &amp; disease alerts for Monze farmers</p>
+</header>
+
+<main>
+
+  <!-- PRICES -->
+  <section id="tab-prices" class="active">
+    <div class="card">
+      <h2>Report a price</h2>
+      <label for="p-commodity">Commodity</label>
+      <select id="p-commodity">
+        <option value="maize">Maize</option>
+        <option value="cattle">Cattle</option>
+        <option value="groundnuts">Groundnuts</option>
+      </select>
+      <label for="p-price">Price (Kwacha)</label>
+      <input id="p-price" type="number" inputmode="decimal" placeholder="e.g. 380" />
+      <label for="p-phone">Your phone number</label>
+      <input id="p-phone" type="tel" placeholder="09xxxxxxxx" />
+      <button id="p-submit">Submit price</button>
+      <div id="p-status" class="status"></div>
+    </div>
+    <div class="card">
+      <h2>Recent maize average</h2>
+      <div id="p-average" class="empty">Loading…</div>
+    </div>
+    <div class="card">
+      <h2>Recent reports</h2>
+      <div id="p-list" class="empty">Loading…</div>
+    </div>
+  </section>
+
+  <!-- DEALERS -->
+  <section id="tab-dealers">
+    <div class="card">
+      <h2>Agro-dealers</h2>
+      <div id="d-list" class="empty">Loading…</div>
+    </div>
+  </section>
+
+  <!-- WEATHER -->
+  <section id="tab-weather">
+    <div class="card">
+      <h2>7-day rain forecast</h2>
+      <div id="w-advice" class="empty">Loading…</div>
+      <div id="w-list"></div>
+    </div>
+  </section>
+
+  <!-- ALERTS -->
+  <section id="tab-alerts">
+    <div class="card">
+      <h2>Report a disease alert</h2>
+      <label for="a-disease">Disease / symptom</label>
+      <input id="a-disease" type="text" placeholder="e.g. suspected ECF" />
+      <label for="a-location">Location</label>
+      <input id="a-location" type="text" placeholder="e.g. Chivuna" />
+      <label for="a-phone">Your phone number</label>
+      <input id="a-phone" type="tel" placeholder="09xxxxxxxx" />
+      <button id="a-submit">Report alert</button>
+      <div id="a-status" class="status"></div>
+    </div>
+    <div class="card">
+      <h2>Recent alerts</h2>
+      <div id="a-list" class="empty">Loading…</div>
+    </div>
+  </section>
+
+</main>
+
+<nav>
+  <button data-tab="prices" class="active"><span class="icon">💰</span>Prices</button>
+  <button data-tab="dealers"><span class="icon">🌾</span>Dealers</button>
+  <button data-tab="weather"><span class="icon">🌧️</span>Weather</button>
+  <button data-tab="alerts"><span class="icon">🐄</span>Alerts</button>
+</nav>
+
+<script>
+const API = ""; // same origin
+
+function timeAgo(iso) {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return mins + "m ago";
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return hrs + "h ago";
+  return Math.round(hrs / 24) + "d ago";
+}
+
+async function apiGet(path) {
+  const res = await fetch(API + path);
+  if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+  return res.json();
+}
+
+async function apiPost(path, body) {
+  const res = await fetch(API + path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+  return res.json();
+}
+
+// ---- Navigation ----
+document.querySelectorAll("nav button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("nav button").forEach((b) => b.classList.remove("active"));
+    document.querySelectorAll("main section").forEach((s) => s.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+  });
+});
+
+// ---- Prices ----
+async function loadPrices() {
+  const avgEl = document.getElementById("p-average");
+  const listEl = document.getElementById("p-list");
+  try {
+    const avg = await apiGet("/prices/average/maize");
+    avgEl.className = "";
+    avgEl.textContent = `K${avg.average_price_kwacha.toFixed(2)} per ${avg.unit} (from ${avg.sample_size} reports)`;
+  } catch (e) {
+    avgEl.className = "empty";
+    avgEl.textContent = "No maize prices reported yet.";
+  }
+  try {
+    const reports = await apiGet("/prices?limit=10");
+    listEl.innerHTML = "";
+    if (reports.length === 0) {
+      listEl.className = "empty";
+      listEl.textContent = "No reports yet.";
+    } else {
+      listEl.className = "";
+      reports.forEach((r) => {
+        const div = document.createElement("div");
+        div.className = "list-item";
+        div.innerHTML = `<strong>${r.commodity.name}</strong> — K${r.price_kwacha.toFixed(2)} / ${r.commodity.unit}
+          <div class="meta">${r.location} · ${timeAgo(r.created_at)} · via ${r.source}</div>`;
+        listEl.appendChild(div);
+      });
+    }
+  } catch (e) {
+    listEl.className = "empty";
+    listEl.textContent = "Couldn't load reports.";
+  }
+}
+
+document.getElementById("p-submit").addEventListener("click", async () => {
+  const statusEl = document.getElementById("p-status");
+  const commodity = document.getElementById("p-commodity").value;
+  const price = parseFloat(document.getElementById("p-price").value);
+  const phone = document.getElementById("p-phone").value.trim();
+  if (!price || price <= 0 || !phone) {
+    statusEl.className = "status error";
+    statusEl.textContent = "Enter a valid price and phone number.";
+    return;
+  }
+  statusEl.className = "status";
+  statusEl.textContent = "Submitting…";
+  try {
+    await apiPost("/prices", { commodity, price_kwacha: price, reporter_phone: phone, source: "app" });
+    statusEl.className = "status ok";
+    statusEl.textContent = "Thanks — price recorded.";
+    document.getElementById("p-price").value = "";
+    loadPrices();
+  } catch (e) {
+    statusEl.className = "status error";
+    statusEl.textContent = e.message;
+  }
+});
+
+// ---- Dealers ----
+async function loadDealers() {
+  const listEl = document.getElementById("d-list");
+  try {
+    const dealers = await apiGet("/dealers");
+    listEl.innerHTML = "";
+    if (dealers.length === 0) {
+      listEl.className = "empty";
+      listEl.textContent = "No dealers listed yet.";
+    } else {
+      listEl.className = "";
+      dealers.forEach((d) => {
+        const div = document.createElement("div");
+        div.className = "list-item";
+        div.innerHTML = `<strong>${d.name}</strong> — ${d.location}
+          <div class="meta">${d.stock_status} · ${d.phone}</div>`;
+        listEl.appendChild(div);
+      });
+    }
+  } catch (e) {
+    listEl.className = "empty";
+    listEl.textContent = "Couldn't load dealers.";
+  }
+}
+
+// ---- Weather ----
+async function loadWeather() {
+  const adviceEl = document.getElementById("w-advice");
+  const listEl = document.getElementById("w-list");
+  try {
+    const data = await apiGet("/weather/forecast");
+    adviceEl.className = "";
+    adviceEl.textContent = `${data.planting_advice} (${data.total_rain_next_7_days_mm}mm expected)`;
+    listEl.innerHTML = "";
+    data.forecast.forEach((day) => {
+      const div = document.createElement("div");
+      div.className = "list-item";
+      div.innerHTML = `<strong>${day.date}</strong>
+        <div class="meta">${day.rain_mm ?? "?"}mm rain · ${day.temp_min_c ?? "?"}–${day.temp_max_c ?? "?"}°C</div>`;
+      listEl.appendChild(div);
+    });
+  } catch (e) {
+    adviceEl.className = "empty";
+    adviceEl.textContent = "Weather unavailable right now — try again later.";
+  }
+}
+
+// ---- Alerts ----
+async function loadAlerts() {
+  const listEl = document.getElementById("a-list");
+  try {
+    const alerts = await apiGet("/alerts?limit=10");
+    listEl.innerHTML = "";
+    if (alerts.length === 0) {
+      listEl.className = "empty";
+      listEl.textContent = "No alerts yet.";
+    } else {
+      listEl.className = "";
+      alerts.forEach((a) => {
+        const div = document.createElement("div");
+        div.className = "list-item";
+        const badge = a.verified
+          ? '<span class="badge verified">Verified</span>'
+          : '<span class="badge unverified">Unverified</span>';
+        div.innerHTML = `<strong>${a.disease}</strong> ${badge}
+          <div class="meta">${a.location} · ${timeAgo(a.created_at)}</div>`;
+        listEl.appendChild(div);
+      });
+    }
+  } catch (e) {
+    listEl.className = "empty";
+    listEl.textContent = "Couldn't load alerts.";
+  }
+}
+
+document.getElementById("a-submit").addEventListener("click", async () => {
+  const statusEl = document.getElementById("a-status");
+  const disease = document.getElementById("a-disease").value.trim();
+  const location = document.getElementById("a-location").value.trim();
+  const phone = document.getElementById("a-phone").value.trim();
+  if (!disease || !location || !phone) {
+    statusEl.className = "status error";
+    statusEl.textContent = "Fill in all fields.";
+    return;
+  }
+  statusEl.className = "status";
+  statusEl.textContent = "Submitting…";
+  try {
+    await apiPost("/alerts", { disease, location, reporter_phone: phone });
+    statusEl.className = "status ok";
+    statusEl.textContent = "Thanks — alert sent for verification.";
+    document.getElementById("a-disease").value = "";
+    document.getElementById("a-location").value = "";
+    loadAlerts();
+  } catch (e) {
+    statusEl.className = "status error";
+    statusEl.textContent = e.message;
+  }
+});
+
+// ---- Offline banner ----
+function updateOnlineStatus() {
+  document.getElementById("offlineBanner").classList.toggle("show", !navigator.onLine);
+}
+window.addEventListener("online", updateOnlineStatus);
+window.addEventListener("offline", updateOnlineStatus);
+updateOnlineStatus();
+
+// ---- Register service worker for installability ----
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+
+// ---- Initial load ----
+loadPrices();
+loadDealers();
+loadWeather();
+loadAlerts();
+</script>
+</body>
+</html>
