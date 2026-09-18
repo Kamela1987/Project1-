@@ -20,10 +20,13 @@ Nothing here is financial or gambling advice.
 """
 
 import argparse
+import contextlib
 import csv
+import io
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 FIELDNAMES = ["date", "description", "odds", "stake", "result", "payout", "legs"]
 VALID_RESULTS = {"win", "loss", "push", "pending"}
@@ -284,6 +287,8 @@ def self_test():
     assert round(kelly_fraction(2.0, 0.6), 4) == 0.2  # b=1, p=0.6, q=0.4 -> (0.6-0.4)/1
     assert kelly_fraction(2.0, 0.4) == 0.0  # negative edge -> no bet
 
+    _test_kelly_edge_cases()
+
     sample = [
         {"date": "2026-01-05", "stake": "10", "result": "win", "payout": "20"},
         {"date": "2026-01-20", "stake": "10", "result": "loss", "payout": "0"},
@@ -304,6 +309,63 @@ def self_test():
     _test_csv_edge_cases()
 
     print("self-test OK")
+
+
+def _run_cmd_kelly(odds, prob, bankroll=1000.0, fraction=0.5):
+    """Call cmd_kelly with the given inputs, returning (exit_code, stdout)."""
+    args = SimpleNamespace(odds=odds, prob=prob, bankroll=bankroll, fraction=fraction)
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+        code = cmd_kelly(args)
+    return code, out.getvalue()
+
+
+def _test_kelly_edge_cases():
+    # Exact breakeven (your estimate matches the market exactly) -> zero edge,
+    # zero stake, not a divide-by-zero or a false positive edge.
+    assert kelly_fraction(2.0, 0.5) == 0.0
+
+    # p=0 (certain loss) and p=1 (certain win) are boundary inputs the CLI
+    # rejects outright (see below); kelly_fraction itself must still not
+    # blow up on them.
+    assert kelly_fraction(2.0, 0.0) == 0.0
+    assert round(kelly_fraction(2.0, 1.0), 4) == 1.0
+
+    # Very short odds (b close to 0) with a real edge: the formula divides by
+    # a tiny b, which should scale the fraction up correctly, not explode
+    # or go negative.
+    f = kelly_fraction(1.01, 0.995)
+    assert 0.0 < f < 1.0
+
+    # Long odds with a modest edge should give a small, sane fraction, not
+    # something >1 (over-betting the whole bankroll on one leg).
+    f = kelly_fraction(10.0, 0.15)
+    assert 0.0 < f < 0.2
+
+    # cmd_kelly must reject odds <= 1.0 (no such thing as break-even-or-worse
+    # decimal odds) instead of silently computing garbage.
+    code, output = _run_cmd_kelly(odds=1.0, prob=0.5)
+    assert code == 1 and "must be > 1.0" in output
+
+    code, output = _run_cmd_kelly(odds=0.5, prob=0.5)
+    assert code == 1
+
+    # cmd_kelly must reject prob outside the open interval (0, 1), including
+    # the exact boundary values, which are degenerate ("certain" outcomes)
+    # rather than real probability estimates.
+    for bad_prob in (0.0, 1.0, -0.1, 1.5):
+        code, output = _run_cmd_kelly(odds=2.0, prob=bad_prob)
+        assert code == 1 and "--prob must be between 0 and 1" in output
+
+    # A no-edge/negative-edge bet succeeds (exit 0) but reports 0% - Kelly's
+    # answer is "don't bet this", not an error.
+    code, output = _run_cmd_kelly(odds=2.0, prob=0.4)
+    assert code == 0 and "0% of bankroll" in output and "no edge" in output
+
+    # fraction=0 (no Kelly staking at all) must yield a 0.00 stake, not a
+    # ZeroDivisionError or a stake computed from the unscaled full Kelly.
+    code, output = _run_cmd_kelly(odds=2.0, prob=0.6, fraction=0.0)
+    assert code == 0 and "= 0.00" in output
 
 
 def _test_csv_edge_cases():
