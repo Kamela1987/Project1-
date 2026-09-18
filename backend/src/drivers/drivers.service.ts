@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Driver, DriverVerificationStatus } from '../entities/driver.entity';
 import { Vehicle } from '../entities/vehicle.entity';
+import { WalletService } from '../wallet/wallet.service';
+import { MIN_WALLET_BALANCE_TO_GO_ONLINE } from '../config/commission.config';
 import { RegisterDriverDto } from './dto/register-driver.dto';
 import { RegisterVehicleDto } from './dto/register-vehicle.dto';
 
@@ -11,6 +13,7 @@ export class DriversService {
   constructor(
     @InjectRepository(Driver) private readonly drivers: Repository<Driver>,
     @InjectRepository(Vehicle) private readonly vehicles: Repository<Vehicle>,
+    private readonly walletService: WalletService,
   ) {}
 
   async register(userId: string, dto: RegisterDriverDto): Promise<Driver> {
@@ -37,6 +40,14 @@ export class DriversService {
     if (isOnline && driver.verificationStatus !== DriverVerificationStatus.APPROVED) {
       throw new BadRequestException('Driver is not yet approved to go online');
     }
+    if (isOnline) {
+      const balance = await this.walletService.getBalance(driver.id);
+      if (balance < MIN_WALLET_BALANCE_TO_GO_ONLINE) {
+        throw new BadRequestException(
+          `Outstanding platform commission of ${(-balance).toFixed(2)} must be settled before going online`,
+        );
+      }
+    }
     driver.isOnline = isOnline;
     return this.drivers.save(driver);
   }
@@ -52,7 +63,7 @@ export class DriversService {
   }
 
   async getByUserId(userId: string): Promise<Driver> {
-    const driver = await this.drivers.findOneBy({ userId });
+    const driver = await this.drivers.findOne({ where: { userId }, relations: ['vehicle'] });
     if (!driver) {
       throw new NotFoundException('Driver profile not found; register as a driver first');
     }

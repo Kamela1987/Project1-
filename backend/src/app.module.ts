@@ -11,6 +11,8 @@ import { Vehicle } from './entities/vehicle.entity';
 import { Trip } from './entities/trip.entity';
 import { TripStatusEvent } from './entities/trip-status-event.entity';
 import { Payment } from './entities/payment.entity';
+import { Wallet } from './entities/wallet.entity';
+import { LedgerEntry } from './entities/ledger-entry.entity';
 
 @Module({
   imports: [
@@ -24,7 +26,7 @@ import { Payment } from './entities/payment.entity';
         username: config.get('DB_USERNAME', 'monze'),
         password: config.get('DB_PASSWORD', 'monze'),
         database: config.get('DB_NAME', 'monze_ride'),
-        entities: [User, Driver, Vehicle, Trip, TripStatusEvent, Payment],
+        entities: [User, Driver, Vehicle, Trip, TripStatusEvent, Payment, Wallet, LedgerEntry],
         // synchronize is fine for Phase 1 local dev; replace with real
         // migrations before this touches a shared/prod database.
         synchronize: true,

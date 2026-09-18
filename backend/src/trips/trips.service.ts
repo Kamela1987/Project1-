@@ -5,6 +5,7 @@ import { Trip, TripStatus } from '../entities/trip.entity';
 import { TripStatusEvent } from '../entities/trip-status-event.entity';
 import { Payment, PaymentMethod, PaymentStatus } from '../entities/payment.entity';
 import { DriversService } from '../drivers/drivers.service';
+import { WalletService } from '../wallet/wallet.service';
 import { RequestTripDto } from './dto/request-trip.dto';
 import { CompleteTripDto } from './dto/complete-trip.dto';
 
@@ -21,6 +22,7 @@ export class TripsService {
     @InjectRepository(TripStatusEvent) private readonly events: Repository<TripStatusEvent>,
     @InjectRepository(Payment) private readonly payments: Repository<Payment>,
     private readonly driversService: DriversService,
+    private readonly walletService: WalletService,
   ) {}
 
   async request(riderId: string, dto: RequestTripDto): Promise<Trip> {
@@ -81,7 +83,12 @@ export class TripsService {
   }
 
   async complete(tripId: string, driverUserId: string, dto: CompleteTripDto): Promise<Trip> {
-    const trip = await this.requireDriverOwnsTrip(tripId, driverUserId, TripStatus.IN_PROGRESS);
+    const driver = await this.driversService.getByUserId(driverUserId);
+    const trip = await this.requireStatus(tripId, TripStatus.IN_PROGRESS);
+    if (trip.driverId !== driver.id) {
+      throw new ForbiddenException('This trip is not assigned to you');
+    }
+
     trip.status = TripStatus.COMPLETED;
     trip.fareAmount = dto.fareAmount.toFixed(2);
     trip.completedAt = new Date();
@@ -95,6 +102,16 @@ export class TripsService {
       amount: trip.fareAmount,
     });
     await this.payments.save(payment);
+
+    // Platform's cut of the cash fare the driver just collected — see
+    // docs/MONZE_RIDE_ARCHITECTURE.md §10 (commission model) and
+    // src/config/commission.config.ts for the rates by vehicle type.
+    await this.walletService.applyTripCommission(
+      driver.id,
+      tripId,
+      dto.fareAmount,
+      driver.vehicle?.type,
+    );
 
     return saved;
   }

@@ -42,6 +42,10 @@ class ApiClient {
     return _get('/drivers/me');
   }
 
+  Future<Map<String, dynamic>> myWallet() {
+    return _get('/drivers/me/wallet');
+  }
+
   Future<Map<String, dynamic>> registerVehicle({
     required String type,
     required String plateNumber,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/trip.dart';
 import '../services/api_client.dart';
 import 'trip_detail_screen.dart';
+import 'wallet_screen.dart';
 
 class TripsScreen extends StatefulWidget {
   const TripsScreen({super.key});
@@ -72,6 +73,13 @@ class _TripsScreenState extends State<TripsScreen> {
       appBar: AppBar(
         title: const Text('Available trips'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+            tooltip: 'My wallet',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const WalletScreen()),
+            ),
+          ),
           if (_isApproved)
             Padding(
               padding: const EdgeInsets.only(right: 8),
