@@ -134,6 +134,26 @@ honest estimate of the true win probability). `--fraction` defaults to 0.5
 (half-Kelly) since full Kelly assumes that estimate is exactly right, which it
 rarely is; a negative edge correctly returns a 0% stake rather than a number.
 
+Example: odds of 2.0, and you genuinely believe the true win probability is
+55% (not the market's implied 50%) -
+
+```
+$ python3 bet_tracker.py kelly --odds 2.0 --prob 0.55 --bankroll 1000 --fraction 0.5
+Odds:                 2.0
+Your estimated p(win): 55.0%
+Implied p(win) at these odds: 50.0%
+Edge (yours vs market): +10.0%
+
+Full Kelly stake:     10.0% of bankroll
+Applied (0.5x Kelly): 5.0% of bankroll = 50.00
+```
+
+That 5% (50.00 on a 1000 bankroll) is the half-Kelly stake for a 10% edge -
+notice it's proportional to how confident and how correct your `--prob`
+estimate is, not a fixed "unit size". If `--prob` were 0.50 (no edge over the
+market) it would report a 0% stake instead, since Kelly's answer to a bet
+with no edge is "don't", not "a little".
+
 `report` also breaks results down by month whenever the log spans more than
 one, so you can see whether a given month, not just your all-time total, was
 actually profitable; pass `--monthly` to force that table even with one month
