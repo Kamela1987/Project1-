@@ -11,10 +11,14 @@ services:
     dockerfilePath: ./Dockerfile
     plan: free
     healthCheckPath: /health
-    # No DATABASE_URL override here on purpose: the free tier has no
-    # persistent disk, so this uses the app's default SQLite file inside the
-    # container's own writable directory (survives restarts, wiped on every
-    # redeploy). If you attach a paid persistent disk (e.g. mounted at
-    # /var/data), set DATABASE_URL to sqlite:////var/data/monze_farm_link.db
-    # so data survives redeploys too, or point it at a managed Postgres
-    # instance instead for real production use.
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite:////tmp/monze_farm_link.db
+    # Render runs the container under a non-root UID that doesn't own /app,
+    # so SQLite can't create its file there - hence /tmp, which is
+    # world-writable regardless of UID. This is ephemeral (wiped on every
+    # restart/redeploy, and free tier has no persistent disk anyway). If you
+    # attach a paid persistent disk (e.g. mounted at /var/data with
+    # permissions open to the container's runtime UID), point DATABASE_URL
+    # at that instead so data survives redeploys, or use managed Postgres
+    # for real production use.
