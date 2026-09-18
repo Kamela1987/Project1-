@@ -50,6 +50,11 @@ class ApiClient {
     return _get('/drivers/me/wallet');
   }
 
+  /// `{average, count}` — `average` is `null` and `count` is `0` for a driver with no ratings yet.
+  Future<Map<String, dynamic>> myRating() {
+    return _get('/drivers/me/rating');
+  }
+
   Future<Map<String, dynamic>> registerVehicle({
     required String type,
     required String plateNumber,

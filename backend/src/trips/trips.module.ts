@@ -6,6 +6,7 @@ import { DriversModule } from '../drivers/drivers.module';
 import { UsersModule } from '../users/users.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { RealtimeModule } from '../realtime/realtime.module';
+import { RatingsModule } from '../ratings/ratings.module';
 import { TripsController } from './trips.controller';
 import { TripsService } from './trips.service';
 
@@ -16,6 +17,7 @@ import { TripsService } from './trips.service';
     UsersModule,
     PaymentsModule,
     RealtimeModule,
+    RatingsModule,
   ],
   controllers: [TripsController],
   providers: [TripsService],

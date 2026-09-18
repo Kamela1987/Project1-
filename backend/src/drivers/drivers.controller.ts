@@ -5,6 +5,7 @@ import { Roles } from '../auth/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../common/current-user.decorator';
 import { UserRole } from '../entities/user.entity';
 import { WalletService } from '../wallet/wallet.service';
+import { RatingsService } from '../ratings/ratings.service';
 import { RegisterDriverDto } from './dto/register-driver.dto';
 import { RegisterVehicleDto } from './dto/register-vehicle.dto';
 import { SetOnlineDto } from './dto/set-online.dto';
@@ -17,6 +18,7 @@ export class DriversController {
   constructor(
     private readonly driversService: DriversService,
     private readonly walletService: WalletService,
+    private readonly ratingsService: RatingsService,
   ) {}
 
   @Post('register')
@@ -53,6 +55,14 @@ export class DriversController {
       this.walletService.listEntries(driver.id),
     ]);
     return { balance, entries };
+  }
+
+  /** Driver's own aggregate rating from completed trips. */
+  @Get('me/rating')
+  @Roles(UserRole.DRIVER)
+  async myRating(@CurrentUser() user: AuthenticatedUser) {
+    const driver = await this.driversService.getByUserId(user.userId);
+    return this.ratingsService.getDriverAggregate(driver.id);
   }
 
   @Patch(':driverId/approve')

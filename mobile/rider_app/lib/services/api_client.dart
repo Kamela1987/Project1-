@@ -79,6 +79,19 @@ class ApiClient {
     return result as Map<String, dynamic>?;
   }
 
+  /// Returns the rating for a trip, or `null` if it hasn't been rated yet.
+  Future<Map<String, dynamic>?> getTripRating(String tripId) async {
+    final result = await _getNullable('/trips/$tripId/rating');
+    return result as Map<String, dynamic>?;
+  }
+
+  Future<Map<String, dynamic>> submitRating(String tripId, int stars, String? comment) {
+    return _post('/trips/$tripId/rating', {
+      'stars': stars,
+      if (comment != null && comment.isNotEmpty) 'comment': comment,
+    });
+  }
+
   Future<List<dynamic>> myTrips() async {
     final result = await _getList('/trips/mine');
     return result;

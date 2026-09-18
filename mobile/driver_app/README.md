@@ -36,10 +36,9 @@ the accept/arrive/start/complete buttons.
 2. `onboarding_screen.dart` — license number + vehicle type/plate, submitted for approval
 3. `trips_screen.dart` — once approved, toggle online/offline and see open trip requests (polled every 5s)
 4. `trip_detail_screen.dart` — accept → mark arrived → start → complete (cash fare, or the rider's chosen mobile money method). Streams real GPS position over WebSocket to `backend/src/realtime/location.gateway.ts` for the whole accepted→in-progress window.
-5. `wallet_screen.dart` — commission owed (cash trips) or net earnings (mobile money trips), with a "cash out to mobile money" action
+5. `wallet_screen.dart` — commission owed (cash trips) or net earnings (mobile money trips), with a "cash out to mobile money" action, plus the driver's aggregate star rating from completed trips
 
 ## Known gaps (by design)
 
 - Driver approval is a backend-only admin call (`PATCH /drivers/:id/approve`) — no admin UI yet (Phase 3)
-- No post-trip ratings (Phase 3)
 - No SMS fallback if the WebSocket drops (architecture doc §6.4) — only REST polling as a fallback today

@@ -7,6 +7,7 @@ import { DriversModule } from './drivers/drivers.module';
 import { TripsModule } from './trips/trips.module';
 import { PaymentsModule } from './payments/payments.module';
 import { RealtimeModule } from './realtime/realtime.module';
+import { RatingsModule } from './ratings/ratings.module';
 import { User } from './entities/user.entity';
 import { Driver } from './entities/driver.entity';
 import { Vehicle } from './entities/vehicle.entity';
@@ -15,6 +16,7 @@ import { TripStatusEvent } from './entities/trip-status-event.entity';
 import { Payment } from './entities/payment.entity';
 import { Wallet } from './entities/wallet.entity';
 import { LedgerEntry } from './entities/ledger-entry.entity';
+import { Rating } from './entities/rating.entity';
 
 @Module({
   imports: [
@@ -28,7 +30,7 @@ import { LedgerEntry } from './entities/ledger-entry.entity';
         username: config.get('DB_USERNAME', 'monze'),
         password: config.get('DB_PASSWORD', 'monze'),
         database: config.get('DB_NAME', 'monze_ride'),
-        entities: [User, Driver, Vehicle, Trip, TripStatusEvent, Payment, Wallet, LedgerEntry],
+        entities: [User, Driver, Vehicle, Trip, TripStatusEvent, Payment, Wallet, LedgerEntry, Rating],
         // synchronize is fine for Phase 1 local dev; replace with real
         // migrations before this touches a shared/prod database.
         synchronize: true,
@@ -40,6 +42,7 @@ import { LedgerEntry } from './entities/ledger-entry.entity';
     TripsModule,
     PaymentsModule,
     RealtimeModule,
+    RatingsModule,
   ],
 })
 export class AppModule {}

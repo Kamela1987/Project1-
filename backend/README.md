@@ -3,8 +3,8 @@
 NestJS + TypeORM/PostgreSQL API implementing
 [`docs/MONZE_RIDE_ARCHITECTURE.md`](../docs/MONZE_RIDE_ARCHITECTURE.md):
 rider requests a trip, a driver accepts, the trip is tracked live via
-WebSocket, and the fare is settled either in cash or via mobile money. No
-admin dashboard or post-trip ratings yet — those are Phase 3.
+WebSocket, the fare is settled either in cash or via mobile money, and the
+rider rates the driver afterward. No admin dashboard yet — that's Phase 3.
 
 ## How the platform (admin) makes money
 
@@ -96,6 +96,31 @@ receiving the broadcast, the REST endpoint reflecting the same value, a
 bad-token connection getting rejected, and a socket for an uninvolved user
 being refused a subscription.
 
+## Post-trip ratings (Phase 2)
+
+[`src/ratings/`](src/ratings) is a small sibling module — no cross-module
+dependencies, just its own `Rating` repository — wired into both
+`TripsController` and `DriversController`:
+
+- `POST /trips/:id/rating` — rider-only, one rating per trip. The unique
+  constraint on `Rating.tripId` is the real "once per trip" guard (a
+  duplicate submit gets caught and rethrown as `409 Conflict`); the
+  controller also checks the caller is that trip's rider and the trip is
+  `completed` with a driver assigned before it even tries.
+- `GET /trips/:id/rating` — `null` until rated.
+- `GET /drivers/me/rating` — the driver's own aggregate (`{ average, count }`),
+  computed with `AVG()`/`COUNT()` over their ratings rather than a stored
+  running total: unlike `Wallet.balance`, a rating is written once and never
+  revised, so there's no reconciliation to earn its keep — the query is
+  cheap and always correct.
+
+Verified against a real local Postgres (not just a build): submitting a
+rating, a duplicate submission correctly rejected with 409, a non-rider
+correctly rejected with 403, rating an in-progress (not yet completed) trip
+correctly rejected with 400, and the aggregate's running average confirmed
+correct across two ratings (5 and 2 stars → 3.5), not just that the field
+exists.
+
 ## Running locally
 
 ```bash
@@ -126,6 +151,7 @@ the server console instead of sending an SMS. Exchange it for a JWT with
 | POST | `/drivers/vehicle` | driver | Register a vehicle |
 | PATCH | `/drivers/online` | driver | Go online/offline (must be approved, and not owing too much commission) |
 | GET | `/drivers/me/wallet` | driver | Own commission balance + ledger history |
+| GET | `/drivers/me/rating` | driver | Own aggregate rating (`{ average, count }`) |
 | PATCH | `/drivers/:driverId/approve` | admin | Approve a driver (stand-in for the Phase 3 admin dashboard) |
 | POST | `/drivers/:driverId/wallet/settlements` | admin | Record a driver paying down commission owed |
 | POST | `/trips` | rider | Request a trip (`paymentMethod`: cash / momo / airtel) |
@@ -139,6 +165,8 @@ the server console instead of sending an SMS. Exchange it for a JWT with
 | GET | `/trips/:id` | any | Trip detail |
 | GET | `/trips/:id/location` | any | Driver's last-known live position — REST fallback for the WebSocket, `null` if unavailable |
 | GET | `/trips/:id/payment` | any | This trip's payment (status, method) — `null` if not created yet |
+| POST | `/trips/:id/rating` | rider | Rate the driver on a completed trip (once per trip) |
+| GET | `/trips/:id/rating` | any | This trip's rating — `null` if not rated yet |
 | GET | `/payments/:id` | any | Payment detail by id |
 | POST | `/payments/payout` | driver | Cash out a positive wallet balance to mobile money |
 | POST | `/payments/webhooks/momo` | webhook secret | MTN MoMo provider callback |
@@ -159,9 +187,8 @@ Connect with `io(baseUrl, { auth: { token: jwt } })`.
 
 - No PostGIS radius-based matching — `GET /trips/available` just lists all
   open requests, since the Phase 1 driver pool is small (Phase 2+)
-- No post-trip ratings (Phase 3)
 - No admin web dashboard (Phase 3) — driver approval and settlements are
   single REST calls
-- `GET /payments/:id` and `GET /trips/:id/payment` don't check the caller
-  is actually the trip's rider/driver — fine for this scaffold, not for
-  production
+- `GET /payments/:id`, `GET /trips/:id/payment`, `GET /trips/:id/location`,
+  and `GET /trips/:id/rating` don't check the caller is actually the
+  trip's rider/driver — fine for this scaffold, not for production

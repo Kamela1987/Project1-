@@ -2,8 +2,8 @@
 
 Flutter app implementing the rider flow: log in by phone/OTP, request a
 ride (car, minibus, or motorbike; cash, MTN MoMo, or Airtel Money), track
-trip status and the driver's live location, and watch mobile money payment
-settle, against the [backend](../../backend).
+trip status and the driver's live location, watch mobile money payment
+settle, and rate the driver afterward, against the [backend](../../backend).
 
 ## Status
 
@@ -29,7 +29,9 @@ flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3000   # Android emulator
   opens a WebSocket (`lib/services/trip_socket_service.dart`) to
   `backend/src/realtime/location.gateway.ts` for their live position
   without waiting for the next poll. Also polls payment status for mobile
-  money trips, since it settles asynchronously.
+  money trips, since it settles asynchronously, and once the trip
+  completes shows a one-time star + comment rating form (or the rating
+  already submitted, if there is one).
 - `lib/services/api_client.dart` — thin REST client for the backend
 
 ## Known gaps (by design)
@@ -37,4 +39,3 @@ flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3000   # Android emulator
 - No map widget — pickup/dropoff are typed coordinates, and the driver's
   live position is shown as raw lat/lng, not a pin on a map
 - No push notifications
-- No post-trip ratings (Phase 3)

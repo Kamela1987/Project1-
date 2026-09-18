@@ -24,10 +24,14 @@ class _TripStatusScreenState extends State<TripStatusScreen> {
   late final _tripSocket = TripSocketService(_api);
   Trip? _trip;
   Map<String, dynamic>? _payment;
+  Map<String, dynamic>? _rating;
   Map<String, dynamic>? _driverLocation;
   Timer? _poller;
   String? _error;
   bool _liveTrackingStarted = false;
+  int _selectedStars = 0;
+  bool _submittingRating = false;
+  final _commentController = TextEditingController();
 
   static const _trackedStatuses = {TripStatus.accepted, TripStatus.arrived, TripStatus.inProgress};
 
@@ -42,8 +46,11 @@ class _TripStatusScreenState extends State<TripStatusScreen> {
   void dispose() {
     _poller?.cancel();
     _tripSocket.dispose();
+    _commentController.dispose();
     super.dispose();
   }
+
+  bool _isUnset(Map<String, dynamic>? m) => m == null || m.isEmpty;
 
   Future<void> _refresh() async {
     try {
@@ -64,6 +71,12 @@ class _TripStatusScreenState extends State<TripStatusScreen> {
         final payment = await _api.getTripPayment(widget.tripId);
         if (!mounted) return;
         setState(() => _payment = payment);
+
+        if (_isUnset(_rating)) {
+          final rating = await _api.getTripRating(widget.tripId);
+          if (!mounted) return;
+          setState(() => _rating = rating);
+        }
       }
 
       final paymentSettled = _payment == null || _payment!['status'] != 'pending';
@@ -84,6 +97,26 @@ class _TripStatusScreenState extends State<TripStatusScreen> {
       await _refresh();
     } catch (e) {
       setState(() => _error = 'Could not cancel: $e');
+    }
+  }
+
+  Future<void> _submitRating() async {
+    setState(() {
+      _submittingRating = true;
+      _error = null;
+    });
+    try {
+      final result = await _api.submitRating(
+        widget.tripId,
+        _selectedStars,
+        _commentController.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() => _rating = result);
+    } catch (e) {
+      setState(() => _error = 'Could not submit rating: $e');
+    } finally {
+      if (mounted) setState(() => _submittingRating = false);
     }
   }
 
@@ -113,6 +146,10 @@ class _TripStatusScreenState extends State<TripStatusScreen> {
                     const SizedBox(height: 16),
                     Text('Fare: K${trip.fareAmount}'),
                     _paymentStatusLine(),
+                  ],
+                  if (trip.status == TripStatus.completed) ...[
+                    const SizedBox(height: 16),
+                    _ratingSection(),
                   ],
                   const SizedBox(height: 24),
                   if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
@@ -156,6 +193,60 @@ class _TripStatusScreenState extends State<TripStatusScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _ratingSection() {
+    final rating = _rating;
+    if (!_isUnset(rating)) {
+      final stars = rating!['stars'] as int;
+      final comment = rating['comment'] as String?;
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.amber),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('You rated this trip', style: TextStyle(fontWeight: FontWeight.bold)),
+            Row(
+              children: [
+                for (var i = 1; i <= 5; i++)
+                  Icon(i <= stars ? Icons.star : Icons.star_border, color: Colors.amber, size: 20),
+              ],
+            ),
+            if (comment != null && comment.isNotEmpty)
+              Padding(padding: const EdgeInsets.only(top: 4), child: Text(comment)),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text('Rate your driver', style: TextStyle(fontWeight: FontWeight.bold)),
+        Row(
+          children: [
+            for (var i = 1; i <= 5; i++)
+              IconButton(
+                icon: Icon(i <= _selectedStars ? Icons.star : Icons.star_border, color: Colors.amber),
+                onPressed: () => setState(() => _selectedStars = i),
+              ),
+          ],
+        ),
+        TextField(
+          controller: _commentController,
+          decoration: const InputDecoration(labelText: 'Comment (optional)'),
+        ),
+        const SizedBox(height: 8),
+        FilledButton(
+          onPressed: (_selectedStars == 0 || _submittingRating) ? null : _submitRating,
+          child: const Text('Submit rating'),
+        ),
+      ],
     );
   }
 

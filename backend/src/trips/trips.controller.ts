@@ -1,11 +1,24 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../common/current-user.decorator';
 import { UserRole } from '../entities/user.entity';
+import { TripStatus } from '../entities/trip.entity';
 import { PaymentsService } from '../payments/payments.service';
 import { LocationService } from '../realtime/location.service';
+import { RatingsService } from '../ratings/ratings.service';
+import { CreateRatingDto } from '../ratings/dto/create-rating.dto';
 import { CompleteTripDto } from './dto/complete-trip.dto';
 import { RequestTripDto } from './dto/request-trip.dto';
 import { TripsService } from './trips.service';
@@ -17,6 +30,7 @@ export class TripsController {
     private readonly tripsService: TripsService,
     private readonly paymentsService: PaymentsService,
     private readonly locationService: LocationService,
+    private readonly ratingsService: RatingsService,
   ) {}
 
   @Post()
@@ -95,5 +109,37 @@ export class TripsController {
   @Roles(UserRole.RIDER)
   cancel(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.tripsService.cancel(id, user.userId);
+  }
+
+  /**
+   * One rating per completed trip, submitted by the rider only. Validation
+   * needs `Trip` state (ownership, completion, driver assignment), which
+   * RatingsService deliberately doesn't own — same shape as the `location()`
+   * passthrough's inline `trip.driverId` check above.
+   */
+  @Post(':id/rating')
+  @Roles(UserRole.RIDER)
+  async rate(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: CreateRatingDto,
+  ) {
+    const trip = await this.tripsService.findById(id);
+    if (trip.riderId !== user.userId) {
+      throw new ForbiddenException('Not your trip');
+    }
+    if (trip.status !== TripStatus.COMPLETED) {
+      throw new BadRequestException('Trip is not completed yet');
+    }
+    if (!trip.driverId) {
+      throw new BadRequestException('Trip has no assigned driver');
+    }
+    return this.ratingsService.submit(id, user.userId, trip.driverId, dto);
+  }
+
+  /** `null` if the trip hasn't been rated yet. */
+  @Get(':id/rating')
+  rating(@Param('id') id: string) {
+    return this.ratingsService.findByTripId(id);
   }
 }

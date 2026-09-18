@@ -111,6 +111,7 @@ erDiagram
     TRIP ||--o{ TRIP_STATUS_EVENT : has
     TRIP ||--|| PAYMENT : settled_by
     TRIP ||--o| RATING : rated_by
+    DRIVER ||--o{ RATING : receives
     ZONE ||--o{ FARE_RULE : defines
     DRIVER ||--|| WALLET : owns
     WALLET ||--o{ LEDGER_ENTRY : records
@@ -166,6 +167,8 @@ erDiagram
     RATING {
         uuid id
         uuid trip_id
+        uuid driver_id
+        uuid rider_id
         int stars
         string comment
     }
@@ -312,7 +315,7 @@ over-engineering for launch.
 | Phase | Scope |
 |---|---|
 | **Phase 1 — Core loop** ✅ scaffolded | Rider requests a trip (car, minibus, or motorbike), driver accepts, manual/cash fare, basic trip status tracking. No live GPS yet — just status updates. Code scaffold: [`backend/`](../backend) (NestJS API), [`mobile/rider_app/`](../mobile/rider_app), [`mobile/driver_app/`](../mobile/driver_app). |
-| **Phase 2 — Live tracking & digital payment** 🟡 mostly scaffolded | MTN MoMo / Airtel Money integration ✅ scaffolded ([`backend/src/payments/`](../backend/src/payments) — collections from riders, disbursements/payouts to drivers, dev-mode simulation since no real provider credentials exist yet). Real-time GPS tracking ✅ scaffolded ([`backend/src/realtime/`](../backend/src/realtime) — WebSocket gateway backed by Redis, verified against a real Postgres+Redis+socket client, not just built). Post-trip ratings are still outstanding. |
+| **Phase 2 — Live tracking, digital payment & ratings** ✅ scaffolded | MTN MoMo / Airtel Money integration ✅ scaffolded ([`backend/src/payments/`](../backend/src/payments) — collections from riders, disbursements/payouts to drivers, dev-mode simulation since no real provider credentials exist yet). Real-time GPS tracking ✅ scaffolded ([`backend/src/realtime/`](../backend/src/realtime) — WebSocket gateway backed by Redis, verified against a real Postgres+Redis+socket client, not just built). Post-trip ratings ✅ scaffolded ([`backend/src/ratings/`](../backend/src/ratings) — one rating per completed trip, rider-only, driver's aggregate exposed via `GET /drivers/me/rating`; verified end-to-end against a real Postgres, including the duplicate/ownership/pre-completion rejections and the running-average math). |
 | **Phase 3 — Ops tooling** | Admin/dispatch dashboard: driver onboarding & approval, zone-based fare configuration, live trip monitoring, dispute handling. |
 | **Phase 4 — Scale-out** | Multi-town support, driver earnings/payout automation, loyalty or referral incentives, optional surge pricing if volume justifies it. |
 

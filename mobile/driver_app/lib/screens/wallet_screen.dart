@@ -17,6 +17,8 @@ class _WalletScreenState extends State<WalletScreen> {
   final _api = ApiClient();
   double? _balance;
   List<dynamic> _entries = [];
+  double? _averageRating;
+  int _ratingCount = 0;
   String? _error;
   bool _payingOut = false;
 
@@ -28,11 +30,14 @@ class _WalletScreenState extends State<WalletScreen> {
 
   Future<void> _refresh() async {
     try {
-      final json = await _api.myWallet();
+      final walletJson = await _api.myWallet();
+      final ratingJson = await _api.myRating();
       if (!mounted) return;
       setState(() {
-        _balance = (json['balance'] as num).toDouble();
-        _entries = json['entries'] as List<dynamic>;
+        _balance = (walletJson['balance'] as num).toDouble();
+        _entries = walletJson['entries'] as List<dynamic>;
+        _averageRating = (ratingJson['average'] as num?)?.toDouble();
+        _ratingCount = ratingJson['count'] as int;
       });
     } catch (e) {
       setState(() => _error = 'Could not load wallet: $e');
@@ -90,6 +95,20 @@ class _WalletScreenState extends State<WalletScreen> {
             if (balance == null)
               const Center(child: CircularProgressIndicator())
             else ...[
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.star, color: Colors.amber, size: 18),
+                    const SizedBox(width: 4),
+                    Text(
+                      _ratingCount == 0
+                          ? 'Not yet rated'
+                          : '${_averageRating!.toStringAsFixed(1)} ($_ratingCount trip${_ratingCount == 1 ? '' : 's'})',
+                    ),
+                  ],
+                ),
+              ),
               Text(
                 owed
                     ? 'You owe K${(-balance).toStringAsFixed(2)} in platform commission'
