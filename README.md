@@ -102,6 +102,27 @@ python3 tech_news_zambia.py --self-test            # check the formatting pipeli
 Exit codes for cron/Actions logs: `0` normal, `3` email was requested but failed to
 send, `4` every source failed and the digest came back empty.
 
+## Bet tracker + parlay calculator
+
+`bet_tracker.py` is a small honesty tool, not a picks generator. It does not
+predict outcomes or fetch odds - it only helps you evaluate and log bets you've
+already decided on:
+
+```bash
+# Before betting: see the real combined odds/probability of a multi-leg slip
+python3 bet_tracker.py parlay --odds 1.149 1.33 1.176 --stake 100
+
+# After placing a bet: log it (result defaults to "pending" until settled)
+python3 bet_tracker.py add "Man City W1" --odds 1.33 --stake 50 --result win
+
+# Any time: see your real win rate and ROI across everything you've logged
+python3 bet_tracker.py report
+```
+
+Bets are stored in `bets.csv` (gitignored, stays local) unless you pass
+`--csv path/to/file.csv`. Run `python3 bet_tracker.py --self-test` to check the
+math and file I/O with no data required.
+
 ## Known limits
 
 - These are free public feeds with no key, so they can rate-limit or go down; a
