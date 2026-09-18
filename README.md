@@ -160,6 +160,22 @@ actually profitable; pass `--monthly` to force that table even with one month
 of data.
 
 ```bash
+# Set a daily stop-loss reminder - warns once today's net loss reaches it
+python3 bet_tracker.py report --daily-loss-limit 100
+```
+
+```
+Today (2026-09-18): 2 bet(s), staked 60.00, profit -60.00
+STOP-LOSS HIT: down 60.00 today, at or past your 60.00 daily limit. Stop betting for today.
+```
+
+This is a reminder, not an enforced limit - the tool has no way to stop you
+from logging another bet, it can only tell you the truth about where today
+already stands. No `--daily-loss-limit` set, or today isn't down by that much
+yet, and `report` just shows today's staked/profit (or a running "X / limit
+used" line) without the warning.
+
+```bash
 # Compare your logged single bets against your logged parlays
 python3 bet_tracker.py stats
 ```
