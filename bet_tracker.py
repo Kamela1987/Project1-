@@ -11,6 +11,8 @@ it does do:
 3. Given a list of leg odds, compute the combined odds, implied probability, and
    payout for a parlay/accumulator BEFORE you place it, so you can see the real
    risk instead of judging it "by feel".
+4. Given odds and YOUR OWN estimated true win probability, size a stake with the
+   Kelly criterion - it does not supply that probability, only the sizing math.
 
 Nothing here is financial or gambling advice.
 """
@@ -52,6 +54,15 @@ def combined_odds(legs):
 
 def implied_probability(decimal_odds):
     return 1.0 / decimal_odds if decimal_odds > 0 else 0.0
+
+
+def kelly_fraction(decimal_odds, win_probability):
+    """Full Kelly stake as a fraction of bankroll. Negative edge -> 0 (don't bet)."""
+    b = decimal_odds - 1.0
+    p = win_probability
+    q = 1.0 - p
+    f = (b * p - q) / b
+    return max(f, 0.0)
 
 
 def cmd_add(args):
@@ -142,9 +153,50 @@ def cmd_parlay(args):
     return 0
 
 
+def cmd_kelly(args):
+    odds = args.odds
+    prob = args.prob
+    bankroll = args.bankroll
+    fraction = args.fraction
+
+    if odds <= 1.0:
+        print(f"Odds must be > 1.0, got {odds}", file=sys.stderr)
+        return 1
+    if not (0.0 < prob < 1.0):
+        print(f"--prob must be between 0 and 1 (exclusive), got {prob}", file=sys.stderr)
+        return 1
+
+    full_kelly = kelly_fraction(odds, prob)
+    applied = full_kelly * fraction
+    stake = applied * bankroll
+    edge = prob * odds - 1.0
+
+    print(f"Odds:                 {odds}")
+    print(f"Your estimated p(win): {prob * 100:.1f}%")
+    print(f"Implied p(win) at these odds: {implied_probability(odds) * 100:.1f}%")
+    print(f"Edge (yours vs market): {edge * 100:+.1f}%")
+    print()
+    if full_kelly <= 0.0:
+        print("Full Kelly: 0% of bankroll - your estimated probability gives no edge at these odds.")
+        print("Kelly says don't bet this, not how much to bet.")
+        return 0
+
+    print(f"Full Kelly stake:     {full_kelly * 100:.1f}% of bankroll")
+    print(f"Applied ({fraction:g}x Kelly): {applied * 100:.1f}% of bankroll = {stake:.2f}")
+    print()
+    print(
+        "Reminder: this is only as good as your --prob estimate. Full Kelly is aggressive "
+        "and assumes that estimate is exactly right, which it rarely is - most people use "
+        "half-Kelly (--fraction 0.5) or less to survive being wrong about p."
+    )
+    return 0
+
+
 def self_test():
     assert round(combined_odds([1.5, 2.0]), 4) == 3.0
     assert round(implied_probability(4.0), 4) == 0.25
+    assert round(kelly_fraction(2.0, 0.6), 4) == 0.2  # b=1, p=0.6, q=0.4 -> (0.6-0.4)/1
+    assert kelly_fraction(2.0, 0.4) == 0.0  # negative edge -> no bet
 
     tmp = Path("/tmp/_bet_tracker_selftest.csv")
     if tmp.exists():
@@ -179,6 +231,21 @@ def build_parser():
     p_parlay.add_argument("--odds", type=float, nargs="+", required=True, help="Decimal odds for each leg")
     p_parlay.add_argument("--stake", type=float, default=1.0)
     p_parlay.set_defaults(func=cmd_parlay)
+
+    p_kelly = sub.add_parser(
+        "kelly", help="Size a stake with the Kelly criterion from your own probability estimate"
+    )
+    p_kelly.add_argument("--odds", type=float, required=True, help="Decimal odds offered")
+    p_kelly.add_argument(
+        "--prob", type=float, required=True,
+        help="YOUR estimated true win probability (0-1) - not derived from the odds",
+    )
+    p_kelly.add_argument("--bankroll", type=float, required=True)
+    p_kelly.add_argument(
+        "--fraction", type=float, default=0.5,
+        help="Fraction of full Kelly to apply (default 0.5 = half-Kelly, safer than full 1.0)",
+    )
+    p_kelly.set_defaults(func=cmd_kelly)
 
     parser.add_argument("--self-test", action="store_true")
     return parser

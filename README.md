@@ -117,11 +117,20 @@ python3 bet_tracker.py add "Man City W1" --odds 1.33 --stake 50 --result win
 
 # Any time: see your real win rate and ROI across everything you've logged
 python3 bet_tracker.py report
+
+# Size a stake with the Kelly criterion, using YOUR OWN probability estimate
+# (the tool never supplies this number - it's not a prediction engine)
+python3 bet_tracker.py kelly --odds 2.0 --prob 0.55 --bankroll 1000 --fraction 0.5
 ```
 
 Bets are stored in `bets.csv` (gitignored, stays local) unless you pass
 `--csv path/to/file.csv`. Run `python3 bet_tracker.py --self-test` to check the
 math and file I/O with no data required.
+
+`kelly` only does the sizing arithmetic once you supply `--prob` (your own
+honest estimate of the true win probability). `--fraction` defaults to 0.5
+(half-Kelly) since full Kelly assumes that estimate is exactly right, which it
+rarely is; a negative edge correctly returns a 0% stake rather than a number.
 
 ## Known limits
 
