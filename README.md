@@ -132,6 +132,11 @@ honest estimate of the true win probability). `--fraction` defaults to 0.5
 (half-Kelly) since full Kelly assumes that estimate is exactly right, which it
 rarely is; a negative edge correctly returns a 0% stake rather than a number.
 
+`report` also breaks results down by month whenever the log spans more than
+one, so you can see whether a given month, not just your all-time total, was
+actually profitable; pass `--monthly` to force that table even with one month
+of data.
+
 ## Known limits
 
 - These are free public feeds with no key, so they can rate-limit or go down; a

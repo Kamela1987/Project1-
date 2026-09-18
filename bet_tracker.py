@@ -92,6 +92,31 @@ def cmd_add(args):
     return 0
 
 
+def summarize(settled):
+    """Aggregate stats for a list of settled bets. Assumes no pending bets included."""
+    total_staked = sum(float(b["stake"]) for b in settled)
+    total_returned = sum(float(b["payout"]) for b in settled)
+    wins = sum(1 for b in settled if b["result"] == "win")
+    losses = sum(1 for b in settled if b["result"] == "loss")
+    pushes = sum(1 for b in settled if b["result"] == "push")
+    profit = total_returned - total_staked
+    return {
+        "count": len(settled),
+        "wins": wins,
+        "losses": losses,
+        "pushes": pushes,
+        "win_rate": (wins / (wins + losses) * 100) if (wins + losses) else 0.0,
+        "total_staked": total_staked,
+        "total_returned": total_returned,
+        "profit": profit,
+        "roi": (profit / total_staked * 100) if total_staked else 0.0,
+    }
+
+
+def month_key(bet):
+    return bet["date"][:7]  # "YYYY-MM-DD" -> "YYYY-MM"
+
+
 def cmd_report(args):
     bets = load_bets(args.csv)
     settled = [b for b in bets if b["result"] in ("win", "loss", "push")]
@@ -103,23 +128,30 @@ def cmd_report(args):
             print(f"{len(pending)} bet(s) still pending.")
         return 0
 
-    total_staked = sum(float(b["stake"]) for b in settled)
-    total_returned = sum(float(b["payout"]) for b in settled)
-    wins = sum(1 for b in settled if b["result"] == "win")
-    losses = sum(1 for b in settled if b["result"] == "loss")
-    pushes = sum(1 for b in settled if b["result"] == "push")
-    profit = total_returned - total_staked
-    roi = (profit / total_staked * 100) if total_staked else 0.0
-    win_rate = (wins / (wins + losses) * 100) if (wins + losses) else 0.0
-
-    print(f"Settled bets:   {len(settled)}  (win {wins} / loss {losses} / push {pushes})")
-    print(f"Win rate:       {win_rate:.1f}%  (excludes pushes)")
-    print(f"Total staked:   {total_staked:.2f}")
-    print(f"Total returned: {total_returned:.2f}")
-    print(f"Net profit:     {profit:+.2f}")
-    print(f"ROI:            {roi:+.1f}%")
+    s = summarize(settled)
+    print(f"Settled bets:   {s['count']}  (win {s['wins']} / loss {s['losses']} / push {s['pushes']})")
+    print(f"Win rate:       {s['win_rate']:.1f}%  (excludes pushes)")
+    print(f"Total staked:   {s['total_staked']:.2f}")
+    print(f"Total returned: {s['total_returned']:.2f}")
+    print(f"Net profit:     {s['profit']:+.2f}")
+    print(f"ROI:            {s['roi']:+.1f}%")
     if pending:
         print(f"Pending:        {len(pending)} bet(s) not yet settled")
+
+    months = sorted({month_key(b) for b in settled})
+    if len(months) > 1 or args.monthly:
+        print()
+        print("By month:")
+        header = f"  {'Month':<9} {'Bets':>5} {'W-L-P':>9} {'Staked':>10} {'Returned':>10} {'Profit':>10} {'ROI':>8}"
+        print(header)
+        for m in months:
+            month_bets = [b for b in settled if month_key(b) == m]
+            ms = summarize(month_bets)
+            wlp = f"{ms['wins']}-{ms['losses']}-{ms['pushes']}"
+            print(
+                f"  {m:<9} {ms['count']:>5} {wlp:>9} {ms['total_staked']:>10.2f} "
+                f"{ms['total_returned']:>10.2f} {ms['profit']:>+10.2f} {ms['roi']:>+7.1f}%"
+            )
     return 0
 
 
@@ -198,6 +230,18 @@ def self_test():
     assert round(kelly_fraction(2.0, 0.6), 4) == 0.2  # b=1, p=0.6, q=0.4 -> (0.6-0.4)/1
     assert kelly_fraction(2.0, 0.4) == 0.0  # negative edge -> no bet
 
+    sample = [
+        {"date": "2026-01-05", "stake": "10", "result": "win", "payout": "20"},
+        {"date": "2026-01-20", "stake": "10", "result": "loss", "payout": "0"},
+        {"date": "2026-02-01", "stake": "10", "result": "win", "payout": "15"},
+    ]
+    assert [month_key(b) for b in sample] == ["2026-01", "2026-01", "2026-02"]
+    jan = summarize([b for b in sample if month_key(b) == "2026-01"])
+    assert jan["count"] == 2 and jan["wins"] == 1 and jan["losses"] == 1
+    assert round(jan["profit"], 2) == 0.0  # staked 20, returned 20
+    feb = summarize([b for b in sample if month_key(b) == "2026-02"])
+    assert feb["count"] == 1 and round(feb["profit"], 2) == 5.0
+
     tmp = Path("/tmp/_bet_tracker_selftest.csv")
     if tmp.exists():
         tmp.unlink()
@@ -225,6 +269,10 @@ def build_parser():
     p_add.set_defaults(func=cmd_add)
 
     p_report = sub.add_parser("report", help="Show win rate, ROI, totals from the log")
+    p_report.add_argument(
+        "--monthly", action="store_true",
+        help="Always show the month-by-month breakdown, even with only one month of data",
+    )
     p_report.set_defaults(func=cmd_report)
 
     p_parlay = sub.add_parser("parlay", help="Compute combined odds/probability for a set of legs")
