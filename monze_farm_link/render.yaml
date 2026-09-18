@@ -1,0 +1,19 @@
+# Render blueprint for one-click deploy: https://render.com/docs/blueprint-spec
+# On render.com: New -> Blueprint -> point at this repo -> Render finds this
+# file automatically (it looks in the repo root, so copy/symlink it there,
+# or set "Root Directory" to monze_farm_link when creating the service by
+# hand instead of via blueprint).
+services:
+  - type: web
+    name: monze-farm-link
+    runtime: docker
+    rootDir: monze_farm_link
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite:////var/data/monze_farm_link.db
+    # Free tier has no persistent disk, so SQLite resets on every deploy/restart.
+    # For real use, either attach a paid persistent disk mounted at /var/data,
+    # or point DATABASE_URL at a managed Postgres instance instead.

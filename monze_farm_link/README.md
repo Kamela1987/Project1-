@@ -58,6 +58,7 @@ curl -X POST http://127.0.0.1:8000/ussd -d "sessionId=1&phoneNumber=0977000000&t
 
 ```bash
 cd monze_farm_link
+pip install -r requirements-dev.txt   # adds pytest + httpx on top of requirements.txt
 pytest
 ```
 
@@ -82,6 +83,38 @@ Open-Meteo call so they don't depend on network access.
 | POST   | `/ussd`                       | USSD webhook (Africa's Talking format)          |
 | GET    | `/health`                     | Health check                                    |
 | GET    | `/`                            | Mobile web app                                  |
+
+## Deployment
+
+The app is packaged so it's deployable on most platforms with no code
+changes — pick whichever you already have an account with:
+
+**Docker (any host: a VPS, Fly.io, a container registry, etc.)**
+
+```bash
+cd monze_farm_link
+docker build -t monze-farm-link .
+docker run -p 8000:8000 -e PORT=8000 monze-farm-link
+```
+
+The image only installs `requirements.txt` (no test dependencies), reads
+`$PORT` at startup, and serves both the API and the mobile web app.
+
+**Render** — a `render.yaml` blueprint is included. On render.com: New →
+Blueprint → point it at this repo (set the blueprint's root directory to
+`monze_farm_link`, or copy `render.yaml` to the repo root) → Render builds
+the Dockerfile and deploys automatically on every push to `main`.
+
+**Railway / Heroku-style platforms** — a `Procfile` is included
+(`web: uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}`); these
+platforms detect it automatically once the repo/subdirectory is connected.
+
+**Persistence note**: SQLite is a single file (`monze_farm_link.db` by
+default). Most free container platforms wipe local disk on every redeploy
+or restart, so data won't survive unless you either attach a persistent
+volume/disk, or set `DATABASE_URL` to point at a managed Postgres instance
+instead — the app already reads `DATABASE_URL` from the environment, so
+switching databases needs no code change.
 
 ## Why this app first
 
