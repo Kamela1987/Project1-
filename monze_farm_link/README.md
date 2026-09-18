@@ -46,6 +46,17 @@ Then open `http://127.0.0.1:8000/docs` for the interactive API, or POST to
 curl -X POST http://127.0.0.1:8000/ussd -d "sessionId=1&phoneNumber=0977000000&text="
 ```
 
+## Tests
+
+```bash
+cd monze_farm_link
+pytest
+```
+
+Each test runs against a fresh in-memory SQLite database, so tests don't
+touch `monze_farm_link.db` or affect each other. Weather tests mock the
+Open-Meteo call so they don't depend on network access.
+
 ## Endpoints
 
 | Method | Path                          | What it does                                  |
