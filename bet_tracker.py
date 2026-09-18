@@ -15,6 +15,9 @@ it does do:
    Kelly criterion - it does not supply that probability, only the sizing math.
 5. Compare your logged single bets against your logged parlays (win rate, ROI),
    so you can see which is actually working for you rather than guessing.
+6. Warn you in `report` when today's net loss reaches a stop-loss limit you set
+   - a reminder to stop for the day, not an enforced limit (nothing stops you
+   from placing another bet; the tool has no way to).
 
 Nothing here is financial or gambling advice.
 """
@@ -133,6 +136,16 @@ def month_key(bet):
     return bet["date"][:7]  # "YYYY-MM-DD" -> "YYYY-MM"
 
 
+def today_key():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def daily_stop_loss_hit(net_loss_today, limit):
+    """True once today's net loss (a positive number; 0 if today is flat or up)
+    meets or exceeds a configured limit. No limit configured -> never hit."""
+    return limit is not None and limit > 0 and net_loss_today >= limit
+
+
 def cmd_report(args):
     bets = load_bets(args.csv)
     settled = [b for b in bets if b["result"] in ("win", "loss", "push")]
@@ -168,6 +181,27 @@ def cmd_report(args):
                 f"  {m:<9} {ms['count']:>5} {wlp:>9} {ms['total_staked']:>10.2f} "
                 f"{ms['total_returned']:>10.2f} {ms['profit']:>+10.2f} {ms['roi']:>+7.1f}%"
             )
+
+    today = today_key()
+    today_bets = [b for b in settled if b["date"] == today]
+    if today_bets:
+        ts = summarize(today_bets)
+        loss_today = max(0.0, -ts["profit"])
+        print()
+        print(
+            f"Today ({today}): {ts['count']} bet(s), staked {ts['total_staked']:.2f}, "
+            f"profit {ts['profit']:+.2f}"
+        )
+        if args.daily_loss_limit is not None:
+            if daily_stop_loss_hit(loss_today, args.daily_loss_limit):
+                print(
+                    f"STOP-LOSS HIT: down {loss_today:.2f} today, at or past your "
+                    f"{args.daily_loss_limit:.2f} daily limit. Stop betting for today."
+                )
+            else:
+                remaining = args.daily_loss_limit - loss_today
+                print(f"Daily stop-loss: {loss_today:.2f} / {args.daily_loss_limit:.2f} used "
+                      f"({remaining:.2f} remaining before you should stop for today)")
     return 0
 
 
@@ -300,6 +334,12 @@ def self_test():
     assert round(jan["profit"], 2) == 0.0  # staked 20, returned 20
     feb = summarize([b for b in sample if month_key(b) == "2026-02"])
     assert feb["count"] == 1 and round(feb["profit"], 2) == 5.0
+
+    assert daily_stop_loss_hit(50.0, 50.0) is True  # exactly at the limit -> hit
+    assert daily_stop_loss_hit(49.99, 50.0) is False
+    assert daily_stop_loss_hit(100.0, None) is False  # no limit configured -> never hit
+    assert daily_stop_loss_hit(0.0, 50.0) is False  # flat/up day, nothing to warn about
+    assert daily_stop_loss_hit(100.0, 0.0) is False  # limit of 0 is "off", not "always hit"
 
     assert bet_type({"legs": "1"}) == "single"
     assert bet_type({"legs": "3"}) == "parlay"
@@ -441,6 +481,10 @@ def build_parser():
     p_report.add_argument(
         "--monthly", action="store_true",
         help="Always show the month-by-month breakdown, even with only one month of data",
+    )
+    p_report.add_argument(
+        "--daily-loss-limit", type=float, default=None,
+        help="Warn when today's net loss reaches this amount (a stop-loss reminder)",
     )
     p_report.set_defaults(func=cmd_report)
 
