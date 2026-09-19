@@ -10,6 +10,7 @@ import { PaymentsService } from '../payments/payments.service';
 import { ZonesService } from '../zones/zones.service';
 import { FareRulesService } from '../fare-rules/fare-rules.service';
 import { TownsService } from '../towns/towns.service';
+import { ReferralsService } from '../referrals/referrals.service';
 import { VehicleType } from '../entities/vehicle.entity';
 import { haversineKm } from '../common/geo.util';
 import { RequestTripDto } from './dto/request-trip.dto';
@@ -54,6 +55,7 @@ export class TripsService {
     private readonly zonesService: ZonesService,
     private readonly fareRulesService: FareRulesService,
     private readonly townsService: TownsService,
+    private readonly referralsService: ReferralsService,
   ) {}
 
   /**
@@ -213,6 +215,17 @@ export class TripsService {
     trip.completedAt = new Date();
     const saved = await this.trips.save(trip);
     await this.recordEvent(tripId, TripStatus.COMPLETED);
+
+    // Referral reward (Phase 4): fires exactly once per rider, ever — this
+    // count includes the trip just saved above, so ===1 means it's their
+    // first completed trip. A no-op inside rewardReferrerForFirstTrip if
+    // they weren't referred by anyone.
+    const completedTripCount = await this.trips.count({
+      where: { riderId: trip.riderId, status: TripStatus.COMPLETED },
+    });
+    if (completedTripCount === 1) {
+      await this.referralsService.rewardReferrerForFirstTrip(trip.riderId, tripId);
+    }
 
     // Rider can switch payment method at the door (dto.paymentMethod);
     // otherwise honor what they requested with.

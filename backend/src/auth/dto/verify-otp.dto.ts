@@ -17,4 +17,9 @@ export class VerifyOtpDto {
   @IsOptional()
   @IsEnum(UserRole)
   role?: UserRole;
+
+  /** Only used the first time a phone number registers — see AuthService.verifyOtp and ReferralsService.resolveReferrer. */
+  @IsOptional()
+  @IsString()
+  referralCode?: string;
 }

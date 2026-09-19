@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import { User, UserRole } from '../entities/user.entity';
 import { OtpStore } from './otp.store';
 import { SmsService } from './sms.service';
+import { ReferralsService } from '../referrals/referrals.service';
 import { RequestOtpDto } from './dto/request-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 
@@ -14,6 +15,7 @@ export class AuthService {
     @InjectRepository(User) private readonly users: Repository<User>,
     private readonly otpStore: OtpStore,
     private readonly smsService: SmsService,
+    private readonly referralsService: ReferralsService,
     private readonly jwtService: JwtService,
   ) {}
 
@@ -40,10 +42,15 @@ export class AuthService {
       if (dto.role === UserRole.ADMIN) {
         throw new ForbiddenException('Cannot self-register as admin');
       }
+      // Validated before creating the row: an unknown referralCode should
+      // reject signup, not silently create an unreferred account.
+      const referrer = await this.referralsService.resolveReferrer(dto.referralCode);
       user = this.users.create({
         phoneNumber: dto.phoneNumber,
         name: dto.name,
         role: dto.role ?? UserRole.RIDER,
+        referralCode: await this.referralsService.generateUniqueCode(),
+        referredByUserId: referrer?.id ?? null,
       });
       user = await this.users.save(user);
     }

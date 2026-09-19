@@ -309,8 +309,9 @@ the OTP is logged to the console instead (`[SmsService] [DEV] SMS to
 | Method | Path | Role | Purpose |
 |---|---|---|---|
 | POST | `/auth/request-otp` | — | Request a login code |
-| POST | `/auth/verify-otp` | — | Verify code, get a JWT (registers on first use) |
+| POST | `/auth/verify-otp` | — | Verify code, get a JWT (registers on first use; optional `referralCode`) |
 | GET | `/users/me` | any | Current user profile |
+| GET | `/users/me/referrals` | any | Own referral code, credit balance, and reward history |
 | POST | `/drivers/register` | driver | Create a driver profile (pending approval) |
 | POST | `/drivers/vehicle` | driver | Register a vehicle |
 | PATCH | `/drivers/online` | driver | Go online/offline (must be approved, and not owing too much commission) |
@@ -550,6 +551,84 @@ entity list separate from `AppModule`'s, and had fallen out of sync —
 `Town` entity's table entirely until `Town` was added there too. Worth
 knowing if a future entity addition's generated migration looks
 suspiciously incomplete.
+
+## Referral program (Phase 4)
+
+Every user gets a referral code at signup; a new signup who enters someone
+else's code, once they complete their first trip, credits the referrer —
+the first of the two roadmap items grouped under "loyalty or referral
+incentives" (surge pricing is the other, still not built — see below).
+
+1. `ReferralsService.generateUniqueCode()` (`src/referrals/`) assigns
+   every new user an 8-char code (`AuthService.verifyOtp`, on the same
+   code path that creates the row — never a separate step). Out-of-band
+   accounts (`scripts/create-admin.ts`) don't get one; `User.referralCode`
+   is nullable for exactly that reason, not because the app's own signup
+   path ever skips it.
+2. `POST /auth/verify-otp` takes an optional `referralCode` — only
+   consulted the first time a phone number registers. An unknown code
+   rejects the signup with 400 (`ReferralsService.resolveReferrer`)
+   rather than silently creating an unreferenced account; leaving it out
+   is completely normal and unaffected.
+3. `TripsService.complete()` counts the rider's total completed trips
+   right after saving this one; when that count is exactly 1, it's their
+   first ever, and `ReferralsService.rewardReferrerForFirstTrip` credits
+   whoever referred them a flat `REFERRAL_REWARD_AMOUNT` (default 20
+   ZMW) — a no-op if they weren't referred by anyone. This can only ever
+   fire once per rider, by construction (a rider has exactly one "first
+   completed trip" in their lifetime), so there's no separate idempotency
+   check needed.
+4. `GET /users/me/referrals` — a user's own code, accrued
+   `referralCreditBalance`, how many people they've referred, and their
+   full reward history.
+
+**Deliberately a separate mechanism from the driver Wallet/LedgerEntry
+system**, not a reuse of it: `Wallet` is keyed to `driverId` only (see
+its entity comment), and a referrer is typically a rider, who has no
+wallet at all today. `ReferralReward` is its own small append-only
+ledger, and `User.referralCreditBalance` its own balance column — same
+shape as `Wallet`/`LedgerEntry` in spirit, kept intentionally separate
+rather than generalizing the driver-only Wallet to fit a second use case.
+
+**Not yet built:** `referralCreditBalance` isn't automatically applied as
+a discount on a future fare — cash fares are driver-entered manually at
+completion (see "Zone-based fare pricing" above for why that's
+deliberately untouched) and mobile-money fares go through a provider
+request-to-pay for the full amount, so redeeming a credit against either
+would mean changing the payment-collection flow itself, not just this
+feature. Today the balance is informational (and, like driver commission
+before payout automation existed, something an admin could settle
+out-of-band) rather than self-service spendable. Also: the reward fires
+on trip *completion*, not on the eventual mobile-money payment
+*succeeding* (which resolves asynchronously, possibly after — see
+"Mobile money" above) — a deliberate simplification, same as most
+real-world "complete a ride" referral programs.
+
+Verified against a real local Postgres + Redis: Rider A signs up (gets a
+code, no referrer); an unknown referral code on signup is rejected with
+400; Rider B signs up with Rider A's code (`referredByUserId` set
+correctly); `GET /users/me/referrals` for Rider A shows `referredCount:
+1` and no rewards yet; Rider B completes their first trip — Rider A's
+balance jumps to 20 with a reward ledger row recorded; Rider B completes
+a *second* trip — Rider A's balance and rewards are unchanged (fires
+exactly once, confirmed); Rider B's own `/users/me/referrals` and the
+out-of-band admin's (`referralCode: null`) both return cleanly with no
+rewards. `migration:generate` reports "no changes" afterward. Lint +
+build clean throughout.
+
+## Surge pricing (Phase 4 — not built)
+
+The architecture doc's §6.3 explicitly recommended against this at
+launch ("Monze's market doesn't have the volume to make surge
+meaningful — and transparent pricing builds trust in a new market"), so
+it was deliberately skipped rather than half-built off-by-default. If
+volume later justifies revisiting it, the natural hook is
+`TripsService.estimateFare`'s per-zone-and-vehicle-type fare formula
+(see "Zone-based fare pricing" above) — a time/demand-based multiplier
+would apply there, gated behind its own env flag the same way
+`AUTO_PAYOUT_ENABLED` gates driver payout automation, so it stays inert
+unless explicitly turned on for a zone that's actually seeing demand
+pressure.
 
 ## What's deliberately not here yet
 
