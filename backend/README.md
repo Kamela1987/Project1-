@@ -299,9 +299,13 @@ of what's already shipped and already verified the other way.
 - **`.github/workflows/admin-ci.yml`** — on changes under `admin/`:
   install, lint, build.
 
-Neither mobile app has a CI workflow — there's no Flutter SDK available in
-this project's dev/CI environment to run one against (see each app's
-README).
+- **`.github/workflows/mobile-ci.yml`** — on changes under `mobile/`: for
+  each app, install Flutter, `flutter pub get`, `flutter analyze`,
+  `flutter test`, `flutter build web`. Both apps only have the `web/`
+  platform folder scaffolded (no `android/`/`ios/` yet — see each app's
+  README), so this is what "CI-verified" means for them today; see each
+  app's own README's "Status" section for how they were also manually
+  driven end-to-end against a real backend.
 
 ## Running locally
 

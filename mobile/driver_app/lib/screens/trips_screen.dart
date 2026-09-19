@@ -114,56 +114,69 @@ class _TripsScreenState extends State<TripsScreen> {
             ),
         ],
       ),
-      body: !_isApproved
-          ? const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'Your driver profile is pending approval. '
-                  'You can go online once an admin approves your account.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            )
-          : !_isOnline
-              ? const Center(child: Text('Go online to see trip requests'))
-              : RefreshIndicator(
-                  onRefresh: _refreshTrips,
-                  child: _trips.isEmpty
-                      ? ListView(
-                          children: const [
-                            Padding(
-                              padding: EdgeInsets.all(24),
-                              child: Center(child: Text('No trip requests right now')),
-                            ),
-                          ],
-                        )
-                      : ListView.builder(
-                          itemCount: _trips.length,
-                          itemBuilder: (context, index) {
-                            final trip = _trips[index];
-                            final distance = trip.distanceKm;
-                            return ListTile(
-                              title: Text(trip.pickupLandmark ?? 'Pickup at ${trip.pickupLat}, ${trip.pickupLng}'),
-                              subtitle: Text(
-                                'To: ${trip.dropoffLandmark ?? '${trip.dropoffLat}, ${trip.dropoffLng}'}'
-                                '${distance != null ? ' · ${distance.toStringAsFixed(1)} km away' : ''}',
-                              ),
-                              trailing: trip.requestedVehicleType != null
-                                  ? Chip(label: Text(trip.requestedVehicleType!))
-                                  : null,
-                              onTap: () async {
-                                await Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => TripDetailScreen(tripId: trip.id),
+      body: Column(
+        children: [
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(_error!, style: const TextStyle(color: Colors.red)),
+            ),
+          Expanded(
+            child: !_isApproved
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text(
+                        'Your driver profile is pending approval. '
+                        'You can go online once an admin approves your account.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  )
+                : !_isOnline
+                    ? const Center(child: Text('Go online to see trip requests'))
+                    : RefreshIndicator(
+                        onRefresh: _refreshTrips,
+                        child: _trips.isEmpty
+                            ? ListView(
+                                children: const [
+                                  Padding(
+                                    padding: EdgeInsets.all(24),
+                                    child: Center(child: Text('No trip requests right now')),
                                   ),
-                                );
-                                _refreshTrips();
-                              },
-                            );
-                          },
-                        ),
-                ),
+                                ],
+                              )
+                            : ListView.builder(
+                                itemCount: _trips.length,
+                                itemBuilder: (context, index) {
+                                  final trip = _trips[index];
+                                  final distance = trip.distanceKm;
+                                  return ListTile(
+                                    title: Text(
+                                      trip.pickupLandmark ?? 'Pickup at ${trip.pickupLat}, ${trip.pickupLng}',
+                                    ),
+                                    subtitle: Text(
+                                      'To: ${trip.dropoffLandmark ?? '${trip.dropoffLat}, ${trip.dropoffLng}'}'
+                                      '${distance != null ? ' · ${distance.toStringAsFixed(1)} km away' : ''}',
+                                    ),
+                                    trailing: trip.requestedVehicleType != null
+                                        ? Chip(label: Text(trip.requestedVehicleType!))
+                                        : null,
+                                    onTap: () async {
+                                      await Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => TripDetailScreen(tripId: trip.id),
+                                        ),
+                                      );
+                                      _refreshTrips();
+                                    },
+                                  );
+                                },
+                              ),
+                      ),
+          ),
+        ],
+      ),
     );
   }
 }
