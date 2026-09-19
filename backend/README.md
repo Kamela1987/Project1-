@@ -137,6 +137,17 @@ status, for live monitoring), [`src/zones/`](src/zones) +
 trip can raise one via `POST /trips/:id/rating`'s sibling
 `POST /trips/:id/disputes`; an admin resolves it).
 
+**Pagination**: `GET /drivers` and `GET /trips` both take `?page=&pageSize=`
+(1-based, defaults `page=1`/`pageSize=50`, `pageSize` capped at 200 —
+`src/common/pagination.dto.ts`) and return `{ items, total, page, pageSize }`
+instead of a bare array, so a growing driver/trip list can never turn into
+an unbounded query. The admin dashboard (`DriversScreen.tsx`,
+`TripsScreen.tsx`) reads `.items` and shows a simple Prev/Next control
+built from `total`, verified against a real local Postgres with more than
+one page of drivers (22 seeded, `pageSize=20`) — page 1 shows "1–20 of
+22" with `Next` enabled, page 2 shows "21–22 of 22" with `Next` correctly
+disabled.
+
 **Security fix that came with this**: `AuthService.verifyOtp` used to trust
 a client-supplied `role: "admin"` on signup — anyone could self-register as
 admin. It now rejects that outright; the only way to create an admin
@@ -729,6 +740,5 @@ pressure.
 
 ## What's deliberately not here yet
 
-- No pagination on `GET /drivers` or `GET /trips` — fine at Monze's scale
 - No audit trail of which admin approved a driver or resolved a dispute —
   every admin account has the same capabilities today

@@ -23,6 +23,7 @@ import { CreateRatingDto } from '../ratings/dto/create-rating.dto';
 import { DisputesService } from '../disputes/disputes.service';
 import { CreateDisputeDto } from '../disputes/dto/create-dispute.dto';
 import { DriversService } from '../drivers/drivers.service';
+import { PaginationQueryDto, resolvePagination } from '../common/pagination.dto';
 import { CompleteTripDto } from './dto/complete-trip.dto';
 import { RequestTripDto } from './dto/request-trip.dto';
 import { FareEstimateDto } from './dto/fare-estimate.dto';
@@ -67,11 +68,16 @@ export class TripsController {
     return this.tripsService.listMine(user.userId);
   }
 
-  /** Admin's live-monitoring feed. `?status=in_progress` and/or `?townId=` to filter — useful once more than one town is configured. */
+  /** Admin's live-monitoring feed. `?status=in_progress` and/or `?townId=` to filter, `?page=&pageSize=` to paginate (defaults 1/50). */
   @Get()
   @Roles(UserRole.ADMIN)
-  listAll(@Query('status') status?: TripStatus, @Query('townId') townId?: string) {
-    return this.tripsService.listAll(status, townId);
+  listAll(
+    @Query('status') status: TripStatus | undefined,
+    @Query('townId') townId: string | undefined,
+    @Query() pagination: PaginationQueryDto,
+  ) {
+    const { page, pageSize } = resolvePagination(pagination);
+    return this.tripsService.listAll(status, townId, page, pageSize);
   }
 
   @Get(':id')

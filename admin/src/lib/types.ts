@@ -1,5 +1,13 @@
 export type UserRole = 'rider' | 'driver' | 'admin';
 
+/** The envelope GET /drivers and GET /trips return (`?page=&pageSize=`, defaults 1/50 — see backend README's "Pagination" section). */
+export interface Page<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface User {
   id: string;
   phoneNumber: string;

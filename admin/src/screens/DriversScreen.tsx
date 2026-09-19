@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
-import type { Driver, DriverVerificationStatus } from '../lib/types';
+import type { Driver, DriverVerificationStatus, Page } from '../lib/types';
 
 const TABS: { label: string; status?: DriverVerificationStatus }[] = [
   { label: 'Pending', status: 'pending' },
@@ -8,9 +8,13 @@ const TABS: { label: string; status?: DriverVerificationStatus }[] = [
   { label: 'All' },
 ];
 
+const PAGE_SIZE = 20;
+
 export function DriversScreen() {
   const [tab, setTab] = useState(0);
+  const [page, setPage] = useState(1);
   const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Driver | null>(null);
@@ -20,8 +24,11 @@ export function DriversScreen() {
     setError(null);
     try {
       const status = TABS[tab].status;
-      const result = await api.get<Driver[]>(`/drivers${status ? `?status=${status}` : ''}`);
-      setDrivers(result);
+      const query = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+      if (status) query.set('status', status);
+      const result = await api.get<Page<Driver>>(`/drivers?${query}`);
+      setDrivers(result.items);
+      setTotal(result.total);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not load drivers');
     } finally {
@@ -32,7 +39,12 @@ export function DriversScreen() {
   useEffect(() => {
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  }, [tab, page]);
+
+  function selectTab(i: number) {
+    setTab(i);
+    setPage(1);
+  }
 
   async function approve(driverId: string) {
     await api.patch(`/drivers/${driverId}/approve`, {});
@@ -52,7 +64,7 @@ export function DriversScreen() {
         {TABS.map((t, i) => (
           <button
             key={t.label}
-            onClick={() => setTab(i)}
+            onClick={() => selectTab(i)}
             className={`px-4 py-2 text-sm font-medium ${
               tab === i
                 ? 'border-b-2 border-teal-700 text-teal-700'
@@ -115,6 +127,30 @@ export function DriversScreen() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {!loading && total > 0 && (
+        <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
+          <span>
+            {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="rounded border border-slate-300 px-3 py-1 disabled:opacity-40"
+            >
+              Prev
+            </button>
+            <button
+              onClick={() => setPage((p) => p + 1)}
+              disabled={page * PAGE_SIZE >= total}
+              className="rounded border border-slate-300 px-3 py-1 disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        </div>
       )}
 
       {selected && (
