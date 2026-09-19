@@ -93,3 +93,16 @@ export interface Dispute {
   createdAt: string;
   resolvedAt?: string | null;
 }
+
+export type AuditAction = 'driver.approved' | 'dispute.resolved';
+
+export interface AuditLogEntry {
+  id: string;
+  actorUserId: string;
+  actorName: string | null;
+  actorPhoneNumber: string | null;
+  action: AuditAction;
+  targetId: string;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+}

@@ -148,6 +148,21 @@ one page of drivers (22 seeded, `pageSize=20`) — page 1 shows "1–20 of
 22" with `Next` enabled, page 2 shows "21–22 of 22" with `Next` correctly
 disabled.
 
+**Audit trail**: every admin account has the same capabilities today (no
+role tiers), so `src/audit/` records *who* did an admin-only action —
+`PATCH /drivers/:driverId/approve` and `PATCH /disputes/:id/resolve` both
+write an immutable `AuditLogEntry` (`src/entities/audit-log-entry.entity.ts`,
+same append-only shape as `LedgerEntry`/`TripStatusEvent`: actor, action,
+target id, and optional metadata — a dispute's `resolutionNote` in that
+case). `GET /audit-log` (admin-only, same `?page=&pageSize=` pagination as
+above) returns each entry enriched with the actor's name and phone number
+(`AuditService.listAll` batch-looks-up the page's distinct actors, not an
+N+1 per row). The admin dashboard's new "Audit log" screen
+(`AuditLogScreen.tsx`) lists it chronologically. Verified against a real
+local Postgres: approving a driver and resolving a dispute each produce
+exactly one correctly-attributed entry, a non-admin gets `403` reading the
+log, and the dashboard screen renders it correctly in a real browser.
+
 **Security fix that came with this**: `AuthService.verifyOtp` used to trust
 a client-supplied `role: "admin"` on signup — anyone could self-register as
 admin. It now rejects that outright; the only way to create an admin
@@ -740,5 +755,11 @@ pressure.
 
 ## What's deliberately not here yet
 
-- No audit trail of which admin approved a driver or resolved a dispute —
-  every admin account has the same capabilities today
+- Real MTN MoMo / Airtel Money integration — see "Mobile money (Phase 2)"
+  above; the dev-auto-complete stub needs real sandbox credentials before
+  this can process actual payments.
+- A real SMS gateway — OTP delivery needs a real provider (e.g. Africa's
+  Talking, Twilio) wired into `SmsService` before this can reach real phones.
+- No role tiers within "admin" — every admin account can approve drivers,
+  resolve disputes, and settle wallets; the audit trail above records who
+  did what, but doesn't yet gate any action behind a finer-grained role.

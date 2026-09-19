@@ -4,6 +4,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../entities/user.entity';
 import { DisputeStatus } from '../entities/dispute.entity';
+import { AuthenticatedUser, CurrentUser } from '../common/current-user.decorator';
 import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
 import { DisputesService } from './disputes.service';
 
@@ -21,7 +22,7 @@ export class DisputesController {
 
   @Patch(':id/resolve')
   @Roles(UserRole.ADMIN)
-  resolve(@Param('id') id: string, @Body() dto: ResolveDisputeDto) {
-    return this.disputesService.resolve(id, dto);
+  resolve(@CurrentUser() admin: AuthenticatedUser, @Param('id') id: string, @Body() dto: ResolveDisputeDto) {
+    return this.disputesService.resolve(id, dto, admin.userId);
   }
 }

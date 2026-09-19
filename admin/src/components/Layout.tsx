@@ -6,6 +6,7 @@ const navItems = [
   { to: '/trips', label: 'Live trips' },
   { to: '/zones', label: 'Zones & fares' },
   { to: '/disputes', label: 'Disputes' },
+  { to: '/audit-log', label: 'Audit log' },
 ];
 
 export function Layout() {

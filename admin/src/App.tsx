@@ -6,6 +6,7 @@ import { DriversScreen } from './screens/DriversScreen';
 import { TripsScreen } from './screens/TripsScreen';
 import { ZonesScreen } from './screens/ZonesScreen';
 import { DisputesScreen } from './screens/DisputesScreen';
+import { AuditLogScreen } from './screens/AuditLogScreen';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="/trips" element={<TripsScreen />} />
             <Route path="/zones" element={<ZonesScreen />} />
             <Route path="/disputes" element={<DisputesScreen />} />
+            <Route path="/audit-log" element={<AuditLogScreen />} />
           </Route>
         </Routes>
       </AuthProvider>

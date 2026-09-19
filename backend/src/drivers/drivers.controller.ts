@@ -97,8 +97,8 @@ export class DriversController {
 
   @Patch(':driverId/approve')
   @Roles(UserRole.ADMIN)
-  approve(@Param('driverId') driverId: string) {
-    return this.driversService.approve(driverId);
+  approve(@CurrentUser() admin: AuthenticatedUser, @Param('driverId') driverId: string) {
+    return this.driversService.approve(driverId, admin.userId);
   }
 
   /** Admin records a driver paying down commission they owe the platform (cash to the office, or a manually-logged MoMo remittance in Phase 1). */

@@ -7,6 +7,8 @@ import { WalletService } from '../wallet/wallet.service';
 import { LocationService } from '../realtime/location.service';
 import { MIN_WALLET_BALANCE_TO_GO_ONLINE } from '../config/commission.config';
 import { Page } from '../common/pagination.dto';
+import { AuditAction } from '../entities/audit-log-entry.entity';
+import { AuditService } from '../audit/audit.service';
 import { RegisterDriverDto } from './dto/register-driver.dto';
 import { RegisterVehicleDto } from './dto/register-vehicle.dto';
 import { UpdatePayoutSettingsDto } from './dto/update-payout-settings.dto';
@@ -18,6 +20,7 @@ export class DriversService {
     @InjectRepository(Vehicle) private readonly vehicles: Repository<Vehicle>,
     private readonly walletService: WalletService,
     private readonly locationService: LocationService,
+    private readonly auditService: AuditService,
   ) {}
 
   async register(userId: string, dto: RegisterDriverDto): Promise<Driver> {
@@ -86,13 +89,15 @@ export class DriversService {
   }
 
   /** Phase 1 stand-in for the admin dashboard's driver-approval screen (Phase 3). */
-  async approve(driverId: string): Promise<Driver> {
+  async approve(driverId: string, approvedByUserId: string): Promise<Driver> {
     const driver = await this.drivers.findOneBy({ id: driverId });
     if (!driver) {
       throw new NotFoundException('Driver not found');
     }
     driver.verificationStatus = DriverVerificationStatus.APPROVED;
-    return this.drivers.save(driver);
+    const saved = await this.drivers.save(driver);
+    await this.auditService.record(approvedByUserId, AuditAction.DRIVER_APPROVED, driverId);
+    return saved;
   }
 
   async getByUserId(userId: string): Promise<Driver> {
