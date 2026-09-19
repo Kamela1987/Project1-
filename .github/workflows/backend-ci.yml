@@ -19,8 +19,10 @@ jobs:
   build-and-smoke-test:
     runs-on: ubuntu-latest
     services:
+      # postgis/postgis, not plain postgres — Phase 4 zone-based fare
+      # pricing needs the PostGIS extension (see src/migrations/*-ZoneBoundary.ts).
       postgres:
-        image: postgres:16-alpine
+        image: postgis/postgis:16-3.4
         env:
           POSTGRES_USER: monze
           POSTGRES_PASSWORD: monze

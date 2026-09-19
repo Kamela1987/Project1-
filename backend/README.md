@@ -144,12 +144,10 @@ account is the out-of-band `npm run seed:admin -- <phone> <name>` script
 (see [`src/scripts/create-admin.ts`](src/scripts/create-admin.ts)), which
 writes directly to the database rather than going through the API.
 
-**Zones/fare rules aren't consumed by trip pricing yet** — fare is still
-manually entered by the driver at completion (unchanged since Phase 1).
-This is a real, working CRUD surface for an admin to configure ahead of
-time, honestly not yet wired into `TripsService.complete()`'s fare
-calculation — that's an automated-fare-estimate feature for a later phase
-(architecture doc §6.3, §9 Phase 4).
+**Zones/fare rules feed the fare estimate (Phase 4)** — see "Zone-based
+fare pricing" below. `TripsService.complete()`'s fare is still
+driver-entered, deliberately unchanged (a cash fare agreed in person can
+legitimately differ from any estimate).
 
 Verified end-to-end (not just built): the whole admin surface driven
 through curl against a real Postgres + Redis (self-registration-as-admin
@@ -250,7 +248,8 @@ at it.
 
 Deployable to any container host (Fly.io, Render, a plain VPS with Docker
 Compose, ECS, etc.) — nothing here is platform-specific beyond needing a
-reachable Postgres and Redis.
+reachable **PostGIS-enabled** Postgres (see "Zone-based fare pricing"
+below — `postgis/postgis`, not plain `postgres`) and Redis.
 
 Verified locally (no Docker daemon available in this dev environment, so
 the image build/compose orchestration itself is unverified): built and
@@ -335,13 +334,14 @@ the OTP is logged to the console instead (`[SmsService] [DEV] SMS to
 | GET | `/trips/:id/payment` | participant/admin | This trip's payment (status, method) — `null` if not created yet |
 | POST | `/trips/:id/rating` | rider | Rate the driver on a completed trip (once per trip) |
 | GET | `/trips/:id/rating` | participant/admin | This trip's rating — `null` if not rated yet |
+| POST | `/trips/fare-estimate` | any | Estimated fare for a pickup/dropoff, before requesting |
 | POST | `/trips/:id/disputes` | rider, driver (participant) | Raise a dispute on your own trip |
 | GET | `/trips/:id/disputes` | participant/admin | This trip's disputes |
 | GET | `/payments/:id` | participant/admin | Payment detail by id |
 | POST | `/payments/payout` | driver | Cash out a positive wallet balance to mobile money |
 | POST | `/payments/webhooks/momo` | webhook secret | MTN MoMo provider callback |
 | POST | `/payments/webhooks/airtel` | webhook secret | Airtel Money provider callback |
-| POST | `/zones` | admin | Create a pricing zone |
+| POST | `/zones` | admin | Create a pricing zone (optionally with a `boundary` polygon) |
 | GET | `/zones` | any | List zones |
 | DELETE | `/zones/:id` | admin | Delete a zone (cascades its fare rules) |
 | POST | `/zones/:zoneId/fare-rules` | admin | Add a fare rule for a zone + vehicle type |
@@ -384,10 +384,64 @@ with an accept timeout (right now drivers just poll/see the sorted list),
 and PostGIS-based zone-boundary geofencing, which remains a separate
 feature (pricing zones, not driver matching).
 
+## Zone-based fare pricing (Phase 4)
+
+`POST /trips/fare-estimate` (`TripsService.estimateFare`) is the rider's
+"what will this roughly cost" step, ahead of requesting a trip — it
+computes the architecture doc's §6.3 formula
+(`base_fare + distance_km * per_km_rate + est_duration_min * per_min_rate`)
+using whichever zone's boundary polygon contains the pickup point:
+
+1. A zone can now have a `boundary` — a PostGIS `geometry(Polygon, 4326)`
+   column (see `src/migrations/*-ZoneBoundary.ts`), set via `POST /zones`'s
+   optional `boundary` field (a single ring of `[lng, lat]` pairs, GeoJSON
+   coordinate order, first/last point equal). Existing zones without one
+   still work as plain pricing buckets — they just never match a pickup
+   point.
+2. `ZonesService.findContainingPoint(lat, lng)` runs `ST_Contains` to find
+   which zone (if any) a pickup falls inside. No match → the estimate
+   response comes back with `zoneId: null` and no estimates, not an error.
+3. Distance is the same `haversineKm` used for driver matching above.
+   Duration has no real routing/traffic API behind it (that's further
+   future work) — it's `distanceKm` at a flat assumed 25 km/h town-driving
+   speed, good enough for a ballpark, not an ETA claim.
+4. One estimate line per vehicle type priced in that zone (or just the
+   requested `vehicleType`, if given) — a vehicle type with no fare rule
+   in that zone is silently skipped, not an error.
+
+This **never touches trip completion** — `TripsService.complete()` still
+takes a driver-entered `fareAmount`, deliberately unchanged, since a cash
+fare agreed in person (detours, waiting time, haggling) can legitimately
+differ from an estimate.
+
+**Needs a PostGIS-enabled Postgres**, not plain `postgres` — both
+`docker-compose.yml` and `docker-compose.prod.yml` use
+`postgis/postgis:16-3.4`, as does `backend-ci.yml`'s Postgres service
+container. The migration's `CREATE EXTENSION IF NOT EXISTS postgis` relies
+on that image having already installed the extension into the target
+database at container init (its non-superuser app role can't create the
+extension itself) — see the migration's own comment.
+
+No admin-UI map for drawing a zone's boundary — `boundary` is set via the
+API's raw coordinate array. Drawing polygons on a map is a real chunk of
+frontend work on its own; out of scope for this pass.
+
+Verified against a real local Postgres with PostGIS installed (simulating
+the `postgis/postgis` image's init-time extension setup, since a plain
+Postgres install has no such image to fall back on locally): created a
+zone with a real boundary around a test "town center" square, added
+sedan/motorbike fare rules, confirmed a pickup inside the boundary returns
+correctly-computed per-vehicle-type estimates (verified the arithmetic by
+hand), confirmed a pickup outside every zone's boundary returns
+`zoneId: null` with no estimates rather than an error, confirmed a vehicle
+type with no rate card in that zone is silently omitted, confirmed a
+malformed (non-closed-ring) boundary is rejected with 400, and confirmed a
+zone created with no boundary at all still works exactly as before this
+feature. `migration:generate` reports "no changes" afterward (entities and
+migration match exactly).
+
 ## What's deliberately not here yet
 
-- Zone/fare-rule config isn't consumed by trip pricing yet — see the admin
-  dashboard section above
 - No pagination on `GET /drivers` or `GET /trips` — fine at Monze's scale
 - No audit trail of which admin approved a driver or resolved a dispute —
   every admin account has the same capabilities today

@@ -1,12 +1,13 @@
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 /**
- * Phase 1-2 note: no `boundary` geography column yet — trips don't carry a
- * zoneId (fare is still manually entered by the driver at completion, see
- * TripsService.complete), so a zone is just a named pricing bucket an
- * admin can configure ahead of time. Wiring "which zone is this pickup
- * in" and an automated fare estimate is future work (see architecture
- * doc §6.3, §9 Phase 4).
+ * `boundary` (PostGIS `geometry(Polygon, 4326)`, nullable — a zone can
+ * exist as a pricing bucket before anyone's drawn its boundary) is
+ * `select: false`: TypeORM has no built-in (de)serialization for PostGIS
+ * geometry, so the normal repository API (`find`, `findOneBy`, ...) never
+ * touches this column. All reads/writes of it go through explicit raw SQL
+ * in ZonesService (`ST_GeomFromGeoJSON`/`ST_Contains`/`ST_AsGeoJSON`) —
+ * see `findContainingPoint`, used by TripsService's fare estimate.
  */
 @Entity('zones')
 export class Zone {
@@ -15,4 +16,7 @@ export class Zone {
 
   @Column({ unique: true })
   name: string;
+
+  @Column('geometry', { spatialFeatureType: 'Polygon', srid: 4326, nullable: true, select: false })
+  boundary?: string | null;
 }

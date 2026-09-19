@@ -7,9 +7,34 @@ import { PaymentMethod } from '../entities/payment-method.enum';
 import { DriversService } from '../drivers/drivers.service';
 import { UsersService } from '../users/users.service';
 import { PaymentsService } from '../payments/payments.service';
+import { ZonesService } from '../zones/zones.service';
+import { FareRulesService } from '../fare-rules/fare-rules.service';
+import { VehicleType } from '../entities/vehicle.entity';
 import { haversineKm } from '../common/geo.util';
 import { RequestTripDto } from './dto/request-trip.dto';
 import { CompleteTripDto } from './dto/complete-trip.dto';
+import { FareEstimateDto } from './dto/fare-estimate.dto';
+
+/**
+ * No routing/traffic API is wired up (that's future work, separate from
+ * zone pricing) — duration is approximated from haversine distance at a
+ * flat assumed town-driving speed. Good enough for a fare *estimate*
+ * ballpark, not for an ETA claim.
+ */
+const ASSUMED_AVG_SPEED_KMH = 25;
+
+export interface FareEstimateLine {
+  vehicleType: VehicleType;
+  fare: number;
+}
+
+export interface FareEstimateResult {
+  zoneId: string | null;
+  zoneName: string | null;
+  distanceKm: number;
+  estDurationMin: number;
+  estimates: FareEstimateLine[];
+}
 
 /**
  * Phase 1 status machine: requested -> accepted -> arrived -> in_progress -> completed
@@ -25,7 +50,46 @@ export class TripsService {
     private readonly driversService: DriversService,
     private readonly usersService: UsersService,
     private readonly paymentsService: PaymentsService,
+    private readonly zonesService: ZonesService,
+    private readonly fareRulesService: FareRulesService,
   ) {}
+
+  /**
+   * Fare formula from docs/MONZE_RIDE_ARCHITECTURE.md §6.3:
+   * base_fare + distance_km * per_km_rate + est_duration_min * per_min_rate,
+   * rated per zone + vehicle type. The pickup point's zone is found via
+   * PostGIS point-in-polygon (ZonesService.findContainingPoint) — a pickup
+   * outside every configured zone boundary returns `zoneId: null` and no
+   * estimates, not an error, since not every zone need have a boundary
+   * drawn yet (see Zone.boundary's comment).
+   *
+   * This never touches trip completion (TripsService.complete still takes
+   * a driver-entered fareAmount) — cash fares are agreed in person and can
+   * legitimately differ from the estimate (detours, waiting time, haggling).
+   * This is purely the rider-facing "what will this roughly cost" step
+   * before requesting, same as any ride-hailing app's fare estimate screen.
+   */
+  async estimateFare(dto: FareEstimateDto): Promise<FareEstimateResult> {
+    const zone = await this.zonesService.findContainingPoint(dto.pickupLat, dto.pickupLng);
+    const distanceKm = haversineKm(dto.pickupLat, dto.pickupLng, dto.dropoffLat, dto.dropoffLng);
+    const estDurationMin = (distanceKm / ASSUMED_AVG_SPEED_KMH) * 60;
+
+    if (!zone) {
+      return { zoneId: null, zoneName: null, distanceKm, estDurationMin, estimates: [] };
+    }
+
+    const vehicleTypes = dto.vehicleType ? [dto.vehicleType] : Object.values(VehicleType);
+    const estimates: FareEstimateLine[] = [];
+    for (const vehicleType of vehicleTypes) {
+      const rule = await this.fareRulesService.findOne(zone.id, vehicleType);
+      if (!rule) continue; // no rate card for this vehicle type in this zone yet
+      const fare =
+        Number(rule.baseFare) + distanceKm * Number(rule.perKmRate) + estDurationMin * Number(rule.perMinRate);
+      estimates.push({ vehicleType, fare: Math.round(fare * 100) / 100 });
+    }
+
+    return { zoneId: zone.id, zoneName: zone.name, distanceKm, estDurationMin, estimates };
+  }
 
   async request(riderId: string, dto: RequestTripDto): Promise<Trip> {
     const trip = this.trips.create({

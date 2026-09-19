@@ -25,6 +25,7 @@ import { CreateDisputeDto } from '../disputes/dto/create-dispute.dto';
 import { DriversService } from '../drivers/drivers.service';
 import { CompleteTripDto } from './dto/complete-trip.dto';
 import { RequestTripDto } from './dto/request-trip.dto';
+import { FareEstimateDto } from './dto/fare-estimate.dto';
 import { TripsService } from './trips.service';
 
 @Controller('trips')
@@ -43,6 +44,12 @@ export class TripsController {
   @Roles(UserRole.RIDER)
   request(@CurrentUser() user: AuthenticatedUser, @Body() dto: RequestTripDto) {
     return this.tripsService.request(user.userId, dto);
+  }
+
+  /** Rider-facing "what will this roughly cost" screen, ahead of requesting a trip — see TripsService.estimateFare. */
+  @Post('fare-estimate')
+  fareEstimate(@Body() dto: FareEstimateDto) {
+    return this.tripsService.estimateFare(dto);
   }
 
   /** Sorted by distance to the calling driver's last-known position, when known — see TripsService.listAvailable. */

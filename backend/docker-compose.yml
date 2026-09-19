@@ -1,6 +1,9 @@
 services:
+  # postgis/postgis (not plain postgres) — Phase 4 zone-based fare pricing
+  # (src/zones/) needs the PostGIS extension for point-in-polygon matching;
+  # see src/migrations/*-ZoneBoundary.ts.
   postgres:
-    image: postgres:16-alpine
+    image: postgis/postgis:16-3.4
     restart: unless-stopped
     environment:
       POSTGRES_USER: monze

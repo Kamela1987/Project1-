@@ -9,5 +9,6 @@ import { FareRulesController, FareRuleController } from './fare-rules.controller
   imports: [TypeOrmModule.forFeature([FareRule]), ZonesModule],
   controllers: [FareRulesController, FareRuleController],
   providers: [FareRulesService],
+  exports: [FareRulesService],
 })
 export class FareRulesModule {}

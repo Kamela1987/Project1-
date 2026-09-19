@@ -9,8 +9,9 @@
 # local testing only — a real deployment supplies its own via the hosting
 # platform's secret store, never commits them here.
 services:
+  # postgis/postgis, not plain postgres — see docker-compose.yml's comment.
   postgres:
-    image: postgres:16-alpine
+    image: postgis/postgis:16-3.4
     restart: unless-stopped
     environment:
       POSTGRES_USER: monze

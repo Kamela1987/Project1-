@@ -49,7 +49,7 @@ Design constraints that shape every decision below:
 |---|---|---|
 | Rider + Driver apps | **Flutter** | One Dart codebase covers both apps and (with the same widgets) could later target iOS; compiles to small, fast native binaries that run well on low-end Android; strong offline-first tooling (local SQLite/Hive caching, connectivity-aware UI). Beats React Native on raw performance/footprint for this device profile, and beats native Kotlin on dev cost since one team maintains both apps. |
 | Backend API | **Node.js + NestJS (TypeScript)** | Structured, testable service layout out of the box; huge ecosystem for payment/SMS integrations; easy to hire for regionally. |
-| Primary database | **PostgreSQL + PostGIS** | PostGIS gives efficient "find nearest driver within radius" geospatial queries without a bespoke matching service. |
+| Primary database | **PostgreSQL + PostGIS** ✅ PostGIS scaffolded, for zone-boundary matching (`backend/src/zones/`, see §6.3) rather than driver search — driver-to-pickup distance is Redis+haversine, see §7 | PostGIS gives efficient point-in-polygon zone matching and, if ever needed, "find nearest driver within radius" geospatial queries without a bespoke matching service. |
 | Live location / matching cache | **Redis** ✅ scaffolded (`backend/src/realtime/location.service.ts` — 60s-TTL cache of each online driver's position) | Sub-second read/write for "where are all online drivers right now," trip-state pub/sub, and the request-matching queue. |
 | Real-time transport | **WebSocket (Socket.IO)** ✅ scaffolded (`backend/src/realtime/location.gateway.ts`), with SMS fallback for trip-status changes (not yet built — see the OTP delivery row below for the SMS gateway itself, which *is* wired up) | Push live driver location and trip status to both apps; when a device drops off data, fall back to SMS for critical state changes (trip accepted, driver arrived, trip completed). |
 | OTP delivery (login) | **SMS via Africa's Talking** ✅ scaffolded (`backend/src/auth/sms.service.ts` — reaches MTN/Airtel/Zamtel through one API; falls back to logging the code instead of sending when no credentials are configured, so dev/CI need no real gateway) | Phone-based login needs the OTP to actually reach the rider/driver's handset, not just a JWT-issuing endpoint. |
@@ -256,6 +256,13 @@ sequenceDiagram
 
 ### 6.3 Fare estimation
 
+✅ scaffolded (`POST /trips/fare-estimate`, `backend/src/trips/trips.service.ts`'s
+`estimateFare` — matches the pickup point to a zone via PostGIS
+`ST_Contains`, applies that zone + vehicle type's fare rule; see
+`backend/README.md`'s "Zone-based fare pricing"). Duration has no real
+routing/traffic API behind it yet — a flat assumed town-driving speed
+applied to the haversine distance, a ballpark rather than a routed ETA.
+
 Kept deliberately simple and transparent rather than Yango-style dynamic
 surge, since Monze's market doesn't have the volume to make surge
 meaningful — and transparent pricing builds trust in a new market:
@@ -340,8 +347,8 @@ over-engineering for launch.
 |---|---|
 | **Phase 1 — Core loop** ✅ scaffolded | Rider requests a trip (car, minibus, or motorbike), driver accepts, manual/cash fare, basic trip status tracking. No live GPS yet — just status updates. Code scaffold: [`backend/`](../backend) (NestJS API), [`mobile/rider_app/`](../mobile/rider_app), [`mobile/driver_app/`](../mobile/driver_app). |
 | **Phase 2 — Live tracking, digital payment & ratings** ✅ scaffolded | MTN MoMo / Airtel Money integration ✅ scaffolded ([`backend/src/payments/`](../backend/src/payments) — collections from riders, disbursements/payouts to drivers, dev-mode simulation since no real provider credentials exist yet). Real-time GPS tracking ✅ scaffolded ([`backend/src/realtime/`](../backend/src/realtime) — WebSocket gateway backed by Redis, verified against a real Postgres+Redis+socket client, not just built). Post-trip ratings ✅ scaffolded ([`backend/src/ratings/`](../backend/src/ratings) — one rating per completed trip, rider-only, driver's aggregate exposed via `GET /drivers/me/rating`; verified end-to-end against a real Postgres, including the duplicate/ownership/pre-completion rejections and the running-average math). |
-| **Phase 3 — Ops tooling** ✅ scaffolded | Admin dashboard ✅ scaffolded ([`admin/`](../admin), React+TypeScript+Tailwind — driver onboarding & approval, live trip monitoring, zone/fare-rule configuration, dispute handling; verified with a Playwright script driving the actual UI against a real running backend, not just built). Ships with a security fix: self-service signup could previously mint an admin account by passing `role: "admin"`; the backend now refuses that, and admin accounts only come from an out-of-band seed script (`backend/src/scripts/create-admin.ts`). Zone/fare-rule config is real CRUD but not yet consumed by trip pricing (still manual, per Phase 1) — that's Phase 4. |
-| **Phase 4 — Scale-out** | Multi-town support, driver earnings/payout automation, loyalty or referral incentives, optional surge pricing if volume justifies it. |
+| **Phase 3 — Ops tooling** ✅ scaffolded | Admin dashboard ✅ scaffolded ([`admin/`](../admin), React+TypeScript+Tailwind — driver onboarding & approval, live trip monitoring, zone/fare-rule configuration, dispute handling; verified with a Playwright script driving the actual UI against a real running backend, not just built). Ships with a security fix: self-service signup could previously mint an admin account by passing `role: "admin"`; the backend now refuses that, and admin accounts only come from an out-of-band seed script (`backend/src/scripts/create-admin.ts`). |
+| **Phase 4 — Scale-out** | Zone-based fare pricing ✅ scaffolded ([`backend/src/zones/`](../backend/src/zones), [`backend/src/trips/trips.service.ts`](../backend/src/trips/trips.service.ts)'s `estimateFare` — zones can now carry a real PostGIS boundary polygon, matched against a trip's pickup point to auto-compute a fare estimate from the zone + vehicle type's rate card, per §6.3's formula; verified against a real Postgres with PostGIS; see `backend/README.md`'s "Zone-based fare pricing" for the full verification and what's still deliberately out of scope, like an admin-UI map for drawing boundaries). Still not built: multi-town support, driver earnings/payout automation, loyalty or referral incentives, optional surge pricing if volume justifies it. |
 
 ## 10. Open Questions for Stakeholders
 

@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { FareRule } from '../entities/fare-rule.entity';
+import { VehicleType } from '../entities/vehicle.entity';
 import { ZonesService } from '../zones/zones.service';
 import { CreateFareRuleDto } from './dto/create-fare-rule.dto';
 
@@ -36,6 +37,11 @@ export class FareRulesService {
 
   findByZone(zoneId: string): Promise<FareRule[]> {
     return this.fareRules.find({ where: { zoneId } });
+  }
+
+  /** `null` if this zone has no rate card for that vehicle type — used by TripsService's fare estimate. */
+  findOne(zoneId: string, vehicleType: VehicleType): Promise<FareRule | null> {
+    return this.fareRules.findOneBy({ zoneId, vehicleType });
   }
 
   async delete(id: string): Promise<void> {

@@ -8,6 +8,8 @@ import { PaymentsModule } from '../payments/payments.module';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { RatingsModule } from '../ratings/ratings.module';
 import { DisputesModule } from '../disputes/disputes.module';
+import { ZonesModule } from '../zones/zones.module';
+import { FareRulesModule } from '../fare-rules/fare-rules.module';
 import { TripsController } from './trips.controller';
 import { TripsService } from './trips.service';
 
@@ -20,6 +22,8 @@ import { TripsService } from './trips.service';
     RealtimeModule,
     RatingsModule,
     DisputesModule,
+    ZonesModule,
+    FareRulesModule,
   ],
   controllers: [TripsController],
   providers: [TripsService],
