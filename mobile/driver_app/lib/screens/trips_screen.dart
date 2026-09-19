@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/trip.dart';
 import '../services/api_client.dart';
+import '../services/location_tracking_service.dart';
 import 'trip_detail_screen.dart';
 import 'wallet_screen.dart';
 
@@ -14,6 +15,7 @@ class TripsScreen extends StatefulWidget {
 
 class _TripsScreenState extends State<TripsScreen> {
   final _api = ApiClient();
+  final _locationTracking = LocationTrackingService.instance;
   List<Trip> _trips = [];
   bool _isOnline = false;
   bool _isApproved = false;
@@ -40,9 +42,24 @@ class _TripsScreenState extends State<TripsScreen> {
         _isOnline = me['isOnline'] as bool;
         _isApproved = me['verificationStatus'] == 'approved';
       });
+      if (_isOnline) {
+        // Covers e.g. an app restart while the backend still thinks this
+        // driver is online — resume idle tracking so distance-sorted
+        // matching keeps working without them toggling the switch.
+        await _startIdleTracking();
+      }
       _refreshTrips();
     } catch (e) {
       setState(() => _error = 'Could not load driver profile: $e');
+    }
+  }
+
+  Future<void> _startIdleTracking() async {
+    try {
+      await _locationTracking.start();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'Live location unavailable: $e');
     }
   }
 
@@ -61,6 +78,11 @@ class _TripsScreenState extends State<TripsScreen> {
     try {
       await _api.setOnline(value);
       setState(() => _isOnline = value);
+      if (value) {
+        await _startIdleTracking();
+      } else {
+        await _locationTracking.stop();
+      }
       _refreshTrips();
     } catch (e) {
       setState(() => _error = 'Could not go ${value ? 'online' : 'offline'}: $e');
@@ -120,9 +142,13 @@ class _TripsScreenState extends State<TripsScreen> {
                           itemCount: _trips.length,
                           itemBuilder: (context, index) {
                             final trip = _trips[index];
+                            final distance = trip.distanceKm;
                             return ListTile(
                               title: Text(trip.pickupLandmark ?? 'Pickup at ${trip.pickupLat}, ${trip.pickupLng}'),
-                              subtitle: Text('To: ${trip.dropoffLandmark ?? '${trip.dropoffLat}, ${trip.dropoffLng}'}'),
+                              subtitle: Text(
+                                'To: ${trip.dropoffLandmark ?? '${trip.dropoffLat}, ${trip.dropoffLng}'}'
+                                '${distance != null ? ' · ${distance.toStringAsFixed(1)} km away' : ''}',
+                              ),
                               trailing: trip.requestedVehicleType != null
                                   ? Chip(label: Text(trip.requestedVehicleType!))
                                   : null,

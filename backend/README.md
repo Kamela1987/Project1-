@@ -286,14 +286,35 @@ Connect with `io(baseUrl, { auth: { token: jwt } })`.
 | Direction | Event | Payload | Notes |
 |---|---|---|---|
 | Client → Server | `trip:subscribe` | `{ tripId }` | Join a trip's room; rejected if you're not its rider or assigned driver |
-| Client → Server | `driver:location` | `{ tripId, lat, lng }` | Driver only; ignored unless the trip is accepted/arrived/in-progress and assigned to them |
+| Client → Server | `driver:location` | `{ tripId?, lat, lng }` | Driver only, and only while online. `tripId` is optional: omit it for an idle ping (just updates the driver's cached position for matching, see below); include it to also broadcast to that trip's room, which additionally requires the trip to be accepted/arrived/in-progress and assigned to them |
 | Server → Client | `driver:location` | `{ tripId, lat, lng, updatedAt }` | Broadcast to the trip's room, and sent immediately on subscribe if a position is already cached |
 | Server → Client | `error` | string | Auth failure or a rejected subscribe/update |
 
+## Driver matching (`GET /trips/available`)
+
+Sorted by distance from the requesting driver's last-known position, when
+one is cached. The driver app streams an **idle** `driver:location` ping
+(no `tripId`) as soon as the driver goes online — see the WebSocket table
+above — which `LocationService` caches in Redis (60s TTL, same cache used
+for live trip tracking). `TripsService.listAvailable` reads that cached
+position, computes a haversine distance to each open trip's pickup point,
+and sorts ascending; a driver who hasn't pinged a position yet (or whose
+ping expired) still gets the full list, just in chronological order —
+nothing is ever filtered out by distance, only reordered. Going offline
+(`PATCH /drivers/me/online`) clears the driver's cached position
+immediately.
+
+This intentionally reuses the Redis live-location cache rather than adding
+PostGIS: Redis was already the architecture's assigned store for "where are
+all online drivers right now" (see `docs/MONZE_RIDE_ARCHITECTURE.md` §7),
+and a driver's own request list is small enough that in-process haversine
+sorting is enough. Still not built: active push/offer dispatch to a driver
+with an accept timeout (right now drivers just poll/see the sorted list),
+and PostGIS-based zone-boundary geofencing, which remains a separate
+feature (pricing zones, not driver matching).
+
 ## What's deliberately not here yet
 
-- No PostGIS radius-based matching — `GET /trips/available` just lists all
-  open requests, since the Phase 1 driver pool is small (Phase 2+)
 - Zone/fare-rule config isn't consumed by trip pricing yet — see the admin
   dashboard section above
 - No pagination on `GET /drivers` or `GET /trips` — fine at Monze's scale

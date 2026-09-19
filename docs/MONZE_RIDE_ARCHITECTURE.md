@@ -288,13 +288,23 @@ Given a driver pool in the tens-to-low-hundreds, a simple radius search is
 sufficient — no need for the ML-based dispatch optimization larger
 platforms use:
 
-1. On trip request, query Redis/PostGIS for online drivers within an
-   expanding radius (start at 2 km, widen if none found).
+1. ✅ scaffolded — `GET /trips/available` (`backend/src/trips/trips.service.ts`,
+   `backend/src/trips/trips.controller.ts`) sorts open trip requests by
+   haversine distance from the requesting driver's last-known position,
+   cached in Redis by an idle `driver:location` WebSocket ping
+   (`backend/src/realtime/location.gateway.ts`) the driver app sends as soon
+   as it goes online. This is distance-sorting of the *driver's own pull*
+   of open requests, not the expanding-radius *push* dispatch below —
+   see `backend/README.md`'s "Driver matching" section for details.
 2. Rank candidates by distance (and optionally driver rating).
 3. Offer the trip to the top candidate with a short accept window (e.g. 15s);
    if declined or timed out, offer to the next.
 4. If no driver accepts within a configurable window, notify the rider and
    suggest retrying or calling dispatch directly.
+
+Steps 2–4 (active push/offer dispatch with an accept timeout) are still not
+built — drivers currently see and accept from the sorted list themselves,
+there's no server-initiated offer/timeout loop yet.
 
 **Growth path:** if the driver pool grows into the hundreds and multiple
 towns are added, this can evolve into a proper matching service that scores

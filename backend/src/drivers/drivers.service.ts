@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Driver, DriverVerificationStatus } from '../entities/driver.entity';
 import { Vehicle } from '../entities/vehicle.entity';
 import { WalletService } from '../wallet/wallet.service';
+import { LocationService } from '../realtime/location.service';
 import { MIN_WALLET_BALANCE_TO_GO_ONLINE } from '../config/commission.config';
 import { RegisterDriverDto } from './dto/register-driver.dto';
 import { RegisterVehicleDto } from './dto/register-vehicle.dto';
@@ -14,6 +15,7 @@ export class DriversService {
     @InjectRepository(Driver) private readonly drivers: Repository<Driver>,
     @InjectRepository(Vehicle) private readonly vehicles: Repository<Vehicle>,
     private readonly walletService: WalletService,
+    private readonly locationService: LocationService,
   ) {}
 
   async register(userId: string, dto: RegisterDriverDto): Promise<Driver> {
@@ -49,7 +51,14 @@ export class DriversService {
       }
     }
     driver.isOnline = isOnline;
-    return this.drivers.save(driver);
+    const saved = await this.drivers.save(driver);
+    if (!isOnline) {
+      // Stop influencing distance-sorted matching the moment they go
+      // offline, rather than leaving a stale position behind for up to
+      // the Redis TTL (see LocationService).
+      await this.locationService.clearLocation(driver.id);
+    }
+    return saved;
   }
 
   /** Phase 1 stand-in for the admin dashboard's driver-approval screen (Phase 3). */

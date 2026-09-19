@@ -7,6 +7,7 @@ import { PaymentMethod } from '../entities/payment-method.enum';
 import { DriversService } from '../drivers/drivers.service';
 import { UsersService } from '../users/users.service';
 import { PaymentsService } from '../payments/payments.service';
+import { haversineKm } from '../common/geo.util';
 import { RequestTripDto } from './dto/request-trip.dto';
 import { CompleteTripDto } from './dto/complete-trip.dto';
 
@@ -37,12 +38,31 @@ export class TripsService {
     return saved;
   }
 
-  /** All open requests a driver can currently offer to accept. */
-  async listAvailable(): Promise<Trip[]> {
-    return this.trips.find({
+  /**
+   * All open requests a driver can currently offer to accept. When the
+   * driver's own last-known position is available (see
+   * realtime/location.gateway.ts's idle `driver:location` ping), sorts by
+   * distance to each pickup instead of request time — closer trips first,
+   * per docs/MONZE_RIDE_ARCHITECTURE.md §7. Never filters trips out just
+   * because they're far away; a driver should always be able to see every
+   * open request, just in a more useful order.
+   */
+  async listAvailable(driverLat?: number, driverLng?: number): Promise<(Trip & { distanceKm?: number })[]> {
+    const trips = await this.trips.find({
       where: { status: TripStatus.REQUESTED },
       order: { requestedAt: 'ASC' },
     });
+
+    if (driverLat === undefined || driverLng === undefined) {
+      return trips;
+    }
+
+    return trips
+      .map((trip) => ({
+        ...trip,
+        distanceKm: haversineKm(driverLat, driverLng, trip.pickupLat, trip.pickupLng),
+      }))
+      .sort((a, b) => a.distanceKm - b.distanceKm);
   }
 
   async listMine(riderId: string): Promise<Trip[]> {

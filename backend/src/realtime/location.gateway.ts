@@ -18,11 +18,14 @@ import { LocationService } from './location.service';
 const ACTIVE_TRIP_STATUSES = [TripStatus.ACCEPTED, TripStatus.ARRIVED, TripStatus.IN_PROGRESS];
 
 /**
- * Phase 2 live tracking. A driver streams their position while on an
- * active trip (`driver:location`); the rider — and the driver, for their
- * own confirmation — join that trip's room (`trip:subscribe`) to receive
- * it. This is additive to, not a replacement for, `GET /trips/:id/location`
- * (see trips.controller.ts), which stays as the offline/low-connectivity
+ * Phase 2 live tracking, extended for driver matching (§7): a driver
+ * streams their position over `driver:location` both while idle (online,
+ * no trip yet — this is what makes distance-sorted `GET /trips/available`
+ * possible, see TripsService.listAvailable) and while on an active trip.
+ * The rider — and the driver, for their own confirmation — join that
+ * trip's room (`trip:subscribe`) to receive trip-scoped broadcasts. This
+ * is additive to, not a replacement for, `GET /trips/:id/location` (see
+ * trips.controller.ts), which stays as the offline/low-connectivity
  * fallback described in docs/MONZE_RIDE_ARCHITECTURE.md §6.4.
  */
 @WebSocketGateway({ cors: { origin: '*' } })
@@ -83,28 +86,36 @@ export class LocationGateway implements OnGatewayConnection {
     }
   }
 
-  /** Driver reports a new position while actively working a trip. */
+  /**
+   * Driver reports a new position — either an idle ping (`tripId` omitted,
+   * just online and available) or while actively working a trip. Idle
+   * pings are what let `GET /trips/available` sort by distance to the
+   * driver; only trip-scoped pings also broadcast to that trip's room.
+   */
   @SubscribeMessage('driver:location')
   async updateLocation(
     @ConnectedSocket() socket: Socket,
-    @MessageBody() body: { tripId: string; lat: number; lng: number },
+    @MessageBody() body: { tripId?: string; lat: number; lng: number },
   ): Promise<void> {
     if (socket.data.role !== 'driver') {
       return;
     }
 
     const driver = await this.drivers.findOneBy({ userId: socket.data.userId });
-    const trip = await this.trips.findOneBy({ id: body.tripId });
-    if (
-      !driver ||
-      !trip ||
-      trip.driverId !== driver.id ||
-      !ACTIVE_TRIP_STATUSES.includes(trip.status)
-    ) {
+    if (!driver || !driver.isOnline) {
       return;
     }
 
     const location = await this.locationService.setLocation(driver.id, body.lat, body.lng);
+
+    if (!body.tripId) {
+      return;
+    }
+
+    const trip = await this.trips.findOneBy({ id: body.tripId });
+    if (!trip || trip.driverId !== driver.id || !ACTIVE_TRIP_STATUSES.includes(trip.status)) {
+      return;
+    }
     this.server.to(this.room(body.tripId)).emit('driver:location', { tripId: body.tripId, ...location });
   }
 

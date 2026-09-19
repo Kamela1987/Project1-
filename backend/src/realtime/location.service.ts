@@ -31,6 +31,11 @@ export class LocationService {
     return raw ? (JSON.parse(raw) as DriverLocation) : null;
   }
 
+  /** Called when a driver goes offline so a stale position can't keep influencing distance sorting. */
+  async clearLocation(driverId: string): Promise<void> {
+    await this.redis.del(this.key(driverId));
+  }
+
   private key(driverId: string): string {
     return `driver:location:${driverId}`;
   }

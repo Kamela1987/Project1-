@@ -13,7 +13,7 @@ class TripDetailScreen extends StatefulWidget {
 
 class _TripDetailScreenState extends State<TripDetailScreen> {
   final _api = ApiClient();
-  late final _locationTracking = LocationTrackingService(_api);
+  final _locationTracking = LocationTrackingService.instance;
   final _fareController = TextEditingController();
   Trip? _trip;
   bool _loading = false;
@@ -27,11 +27,10 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
     _refresh();
   }
 
-  @override
-  void dispose() {
-    _locationTracking.stop();
-    super.dispose();
-  }
+  // Deliberately no `dispose()` stop() call: tracking is tied to the
+  // driver's online/offline state (owned by trips_screen.dart), not this
+  // screen's lifecycle — leaving here should drop back to idle tracking
+  // (handled in _syncTracking below), not kill the socket outright.
 
   Future<void> _refresh() async {
     try {
@@ -45,23 +44,24 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
     }
   }
 
-  /// Streams real GPS position while the trip is accepted/arrived/in
-  /// progress (see backend/src/realtime/location.gateway.ts); stops once
-  /// the trip ends. Location permission errors surface as a page banner
-  /// rather than blocking the trip flow — a driver without GPS can still
-  /// work the trip status buttons.
+  /// Tags the shared location-tracking session with this trip while it's
+  /// accepted/arrived/in progress (see backend/src/realtime/location.gateway.ts),
+  /// which makes the driver app's pings also broadcast to the rider
+  /// watching this trip. Once the trip ends, drops back to idle tracking
+  /// (still pinging position for matching, just untagged) rather than
+  /// stopping outright — the driver is presumably still online. Location
+  /// permission errors surface as a page banner rather than blocking the
+  /// trip flow — a driver without GPS can still work the status buttons.
   Future<void> _syncTracking(TripStatus status) async {
     if (_trackedStatuses.contains(status)) {
-      if (!_locationTracking.isTracking) {
-        try {
-          await _locationTracking.start(widget.tripId);
-        } catch (e) {
-          if (!mounted) return;
-          setState(() => _error = 'Live location unavailable: $e');
-        }
+      try {
+        await _locationTracking.start(tripId: widget.tripId);
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _error = 'Live location unavailable: $e');
       }
     } else {
-      await _locationTracking.stop();
+      _locationTracking.clearTrip();
     }
   }
 

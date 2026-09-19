@@ -37,6 +37,10 @@ class Trip {
   final String? requestedVehicleType;
   final TripStatus status;
   final String? fareAmount;
+  /// Distance from the requesting driver's last-known position, in km.
+  /// Only present when the backend knew where the driver was — see
+  /// TripsService.listAvailable in the backend.
+  final double? distanceKm;
 
   Trip({
     required this.id,
@@ -49,6 +53,7 @@ class Trip {
     this.requestedVehicleType,
     required this.status,
     this.fareAmount,
+    this.distanceKm,
   });
 
   factory Trip.fromJson(Map<String, dynamic> json) {
@@ -63,6 +68,7 @@ class Trip {
       requestedVehicleType: json['requestedVehicleType'] as String?,
       status: TripStatus.fromApiValue(json['status'] as String),
       fareAmount: json['fareAmount'] as String?,
+      distanceKm: (json['distanceKm'] as num?)?.toDouble(),
     );
   }
 }

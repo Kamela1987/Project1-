@@ -45,10 +45,13 @@ export class TripsController {
     return this.tripsService.request(user.userId, dto);
   }
 
+  /** Sorted by distance to the calling driver's last-known position, when known — see TripsService.listAvailable. */
   @Get('available')
   @Roles(UserRole.DRIVER)
-  listAvailable() {
-    return this.tripsService.listAvailable();
+  async listAvailable(@CurrentUser() user: AuthenticatedUser) {
+    const driver = await this.driversService.getByUserId(user.userId);
+    const location = await this.locationService.getLocation(driver.id);
+    return this.tripsService.listAvailable(location?.lat, location?.lng);
   }
 
   @Get('mine')
