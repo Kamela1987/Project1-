@@ -7,14 +7,19 @@ settle, and rate the driver afterward, against the [backend](../../backend).
 
 ## Status
 
-This is a scaffold, not a verified build — the container this was written in
-has no Flutter SDK installed, so it hasn't been run through `flutter pub get`
-/ `flutter analyze` / `flutter run`. Do that first before trusting it end to
-end:
+Verified running (web target) against a real backend — `flutter analyze`
+clean (no warnings at all), `flutter test` passing, `flutter build web`
+clean, and driven end-to-end through a headless browser: login → OTP →
+filling out and submitting a real ride request, which landed as an
+actual row in Postgres. Android/iOS haven't been built or run — this
+repo only has the `web/` platform folder (added via
+`flutter create --platforms=web .`), not `android/`/`ios/`.
 
 ```bash
 flutter pub get
-flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3000   # Android emulator
+flutter run -d web-server --dart-define=API_BASE_URL=http://localhost:3000
+# or, for an Android emulator once android/ is generated (flutter create --platforms=android .):
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3000
 ```
 
 ## What's here
@@ -39,3 +44,4 @@ flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3000   # Android emulator
 - No map widget — pickup/dropoff are typed coordinates, and the driver's
   live position is shown as raw lat/lng, not a pin on a map
 - No push notifications
+- Android/iOS platform folders don't exist yet (only `web/` — see "Status" above)
