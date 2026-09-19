@@ -66,6 +66,7 @@ jobs:
 
       - run: npm ci
       - run: npm run lint
+      - run: npm test
       - run: npm run build
 
       # Exercises the same script the Docker image's entrypoint runs on

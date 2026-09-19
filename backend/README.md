@@ -259,14 +259,43 @@ actually uses), booted the compiled `dist/main.js` with
 `MIGRATIONS_RUN=false`, and confirmed `GET /health` returns `{ ok: true }`
 — the same sequence `.github/workflows/backend-ci.yml` runs on every push.
 
+## Tests
+
+```bash
+npm test          # unit tests (Jest)
+npm run test:watch
+npm run test:cov
+```
+
+Unit tests only — plain repository mocks (`jest.fn()`, or `@nestjs/testing`'s
+`getRepositoryToken` where DI is worth exercising), no database, no
+network. They complement rather than replace this README's own real-infra
+verification: every feature section above (mobile money, live tracking,
+zone pricing, payout automation, multi-town, referrals, ...) was also
+manually driven end-to-end against a real Postgres + Redis when it was
+built, which is a different, broader kind of check than a unit test can
+give (migrations actually applying, PostGIS queries actually matching,
+WebSocket events actually round-tripping). Unit tests cover business
+logic in isolation instead — the fare formula, wallet/commission
+arithmetic, OTP cooldown/expiry, referral crediting firing exactly once,
+multi-town driver-matching scoping — so a regression there fails fast in
+CI without needing a live database.
+
+Coverage is deliberately partial, not exhaustive: services with
+non-trivial logic worth pinning down (`WalletService`, `TripsService`,
+`ZonesService`, `ReferralsService`, `OtpStore`, `geo.util`), not every
+controller/DTO/thin pass-through service in the codebase. Growing this
+suite as new logic lands is more valuable than backfilling 100% coverage
+of what's already shipped and already verified the other way.
+
 ## CI
 
 - **`.github/workflows/backend-ci.yml`** — on changes under `backend/`:
-  install, lint, build, run `migration:run:prod` against a real Postgres
-  service container, boot the compiled app against that Postgres + a Redis
-  service container and poll `GET /health` as a smoke test, then build the
-  Docker image to catch any drift between the image and what CI just
-  verified.
+  install, lint, run the Jest unit tests, build, run `migration:run:prod`
+  against a real Postgres service container, boot the compiled app
+  against that Postgres + a Redis service container and poll
+  `GET /health` as a smoke test, then build the Docker image to catch
+  any drift between the image and what CI just verified.
 - **`.github/workflows/admin-ci.yml`** — on changes under `admin/`:
   install, lint, build.
 
@@ -632,6 +661,11 @@ pressure.
 
 ## What's deliberately not here yet
 
+- No automated e2e/integration test suite (real HTTP requests against a
+  real running app + database, in CI) — everything above was verified
+  that way by hand, repeatedly, but not codified into a suite that runs
+  itself. The unit tests (see "Tests" above) cover business logic in
+  isolation, not the full request/response/DB round-trip.
 - No pagination on `GET /drivers` or `GET /trips` — fine at Monze's scale
 - No audit trail of which admin approved a driver or resolved a dispute —
   every admin account has the same capabilities today
