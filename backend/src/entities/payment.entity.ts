@@ -22,9 +22,12 @@ export class Payment {
   @Column({ name: 'trip_id', unique: true })
   tripId: string;
 
-  /** Denormalized so the async payment webhook can credit the right driver's wallet without re-deriving it from the trip. */
+  /** Denormalized so the async payment webhook can credit the right driver's wallet, and PaymentsController can authorize access, without re-deriving either from the trip. */
   @Column({ name: 'driver_id', nullable: true })
   driverId?: string;
+
+  @Column({ name: 'rider_id', nullable: true })
+  riderId?: string;
 
   @Column({ type: 'enum', enum: PaymentMethod, default: PaymentMethod.CASH })
   method: PaymentMethod;

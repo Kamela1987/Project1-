@@ -162,6 +162,23 @@ script against that same running backend — login, approve a driver via the
 UI, watch the trips table, create/delete a zone and fare rule, and resolve
 a dispute, all confirmed to actually change what's on screen.
 
+## Trip-data access control
+
+`GET /trips/:id`, `GET /trips/:id/payment`, `GET /trips/:id/location`,
+`GET /trips/:id/rating`, `GET /trips/:id/disputes`, and `GET /payments/:id`
+used to be readable by **any authenticated user** — a rider could look up
+another rider's trip, payment, or live location just by guessing/enumerating
+a UUID. Building out the admin dashboard's own trip lookups made this hole
+obvious, so it's fixed: each of these now checks the caller is that trip's
+rider, its assigned driver, or an admin (`TripsController.assertTripParticipantOrAdmin`,
+mirrored in `PaymentsController.findById` via a denormalized `Payment.riderId`
+column added for exactly this check, the same pattern `Payment.driverId`
+already used for the wallet-crediting webhook flow).
+
+Verified against a real local Postgres: a rider, the trip's driver, and an
+admin can each read all six endpoints for a real trip; an uninvolved third
+account gets `403 Forbidden` from all six.
+
 ## Running locally
 
 ```bash
@@ -206,14 +223,14 @@ the server console instead of sending an SMS. Exchange it for a JWT with
 | PATCH | `/trips/:id/cancel` | rider | Cancel a not-yet-started trip |
 | GET | `/trips/mine` | rider | Trip history |
 | GET | `/trips` | admin | Every trip, live-monitoring feed (`?status=in_progress` etc.) |
-| GET | `/trips/:id` | any | Trip detail |
-| GET | `/trips/:id/location` | any | Driver's last-known live position — REST fallback for the WebSocket, `null` if unavailable |
-| GET | `/trips/:id/payment` | any | This trip's payment (status, method) — `null` if not created yet |
+| GET | `/trips/:id` | participant/admin | Trip detail |
+| GET | `/trips/:id/location` | participant/admin | Driver's last-known live position — REST fallback for the WebSocket, `null` if unavailable |
+| GET | `/trips/:id/payment` | participant/admin | This trip's payment (status, method) — `null` if not created yet |
 | POST | `/trips/:id/rating` | rider | Rate the driver on a completed trip (once per trip) |
-| GET | `/trips/:id/rating` | any | This trip's rating — `null` if not rated yet |
-| POST | `/trips/:id/disputes` | rider, driver | Raise a dispute on your own trip |
-| GET | `/trips/:id/disputes` | any | This trip's disputes |
-| GET | `/payments/:id` | any | Payment detail by id |
+| GET | `/trips/:id/rating` | participant/admin | This trip's rating — `null` if not rated yet |
+| POST | `/trips/:id/disputes` | rider, driver (participant) | Raise a dispute on your own trip |
+| GET | `/trips/:id/disputes` | participant/admin | This trip's disputes |
+| GET | `/payments/:id` | participant/admin | Payment detail by id |
 | POST | `/payments/payout` | driver | Cash out a positive wallet balance to mobile money |
 | POST | `/payments/webhooks/momo` | webhook secret | MTN MoMo provider callback |
 | POST | `/payments/webhooks/airtel` | webhook secret | Airtel Money provider callback |
@@ -246,7 +263,3 @@ Connect with `io(baseUrl, { auth: { token: jwt } })`.
 - No pagination on `GET /drivers` or `GET /trips` — fine at Monze's scale
 - No audit trail of which admin approved a driver or resolved a dispute —
   every admin account has the same capabilities today
-- `GET /payments/:id`, `GET /trips/:id/payment`, `GET /trips/:id/location`,
-  `GET /trips/:id/rating`, and `GET /trips/:id/disputes` don't check the
-  caller is actually the trip's rider/driver — fine for this scaffold, not
-  for production

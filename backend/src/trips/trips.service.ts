@@ -116,6 +116,7 @@ export class TripsService {
       await this.paymentsService.recordCashPayment(
         tripId,
         driver.id,
+        trip.riderId,
         dto.fareAmount,
         driver.vehicle?.type,
       );
@@ -127,6 +128,7 @@ export class TripsService {
       await this.paymentsService.initiateMobileMoneyPayment(
         tripId,
         driver.id,
+        trip.riderId,
         rider.phoneNumber,
         dto.fareAmount,
         paymentMethod,

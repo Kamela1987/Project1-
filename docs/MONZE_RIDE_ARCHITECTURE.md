@@ -161,6 +161,8 @@ erDiagram
     PAYMENT {
         uuid id
         uuid trip_id
+        uuid driver_id
+        uuid rider_id
         string method "cash|momo|airtel"
         string status
         decimal amount

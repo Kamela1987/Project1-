@@ -32,6 +32,7 @@ export class PaymentsService {
   async recordCashPayment(
     tripId: string,
     driverId: string,
+    riderId: string,
     fareAmount: number,
     vehicleType?: VehicleType,
   ): Promise<Payment> {
@@ -39,6 +40,7 @@ export class PaymentsService {
       this.payments.create({
         tripId,
         driverId,
+        riderId,
         method: PaymentMethod.CASH,
         status: PaymentStatus.COLLECTED,
         amount: fareAmount.toFixed(2),
@@ -52,6 +54,7 @@ export class PaymentsService {
   async initiateMobileMoneyPayment(
     tripId: string,
     driverId: string,
+    riderId: string,
     riderPhoneNumber: string,
     fareAmount: number,
     method: PaymentMethod,
@@ -60,6 +63,7 @@ export class PaymentsService {
       this.payments.create({
         tripId,
         driverId,
+        riderId,
         method,
         status: PaymentStatus.PENDING,
         amount: fareAmount.toFixed(2),

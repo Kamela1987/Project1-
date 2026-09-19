@@ -15,7 +15,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../common/current-user.decorator';
 import { UserRole } from '../entities/user.entity';
-import { TripStatus } from '../entities/trip.entity';
+import { Trip, TripStatus } from '../entities/trip.entity';
 import { PaymentsService } from '../payments/payments.service';
 import { LocationService } from '../realtime/location.service';
 import { RatingsService } from '../ratings/ratings.service';
@@ -65,13 +65,17 @@ export class TripsController {
   }
 
   @Get(':id')
-  findById(@Param('id') id: string) {
-    return this.tripsService.findById(id);
+  async findById(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    const trip = await this.tripsService.findById(id);
+    await this.assertTripParticipantOrAdmin(trip, user);
+    return trip;
   }
 
   /** For mobile-money trips: lets the rider/driver poll whether the payment collected. `null` for a trip that isn't there yet (still in progress). */
   @Get(':id/payment')
-  payment(@Param('id') id: string) {
+  async payment(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    const trip = await this.tripsService.findById(id);
+    await this.assertTripParticipantOrAdmin(trip, user);
     return this.paymentsService.findByTripId(id);
   }
 
@@ -82,8 +86,9 @@ export class TripsController {
    * recently (see LocationService's TTL).
    */
   @Get(':id/location')
-  async location(@Param('id') id: string) {
+  async location(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     const trip = await this.tripsService.findById(id);
+    await this.assertTripParticipantOrAdmin(trip, user);
     if (!trip.driverId) {
       return null;
     }
@@ -152,7 +157,9 @@ export class TripsController {
 
   /** `null` if the trip hasn't been rated yet. */
   @Get(':id/rating')
-  rating(@Param('id') id: string) {
+  async rating(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    const trip = await this.tripsService.findById(id);
+    await this.assertTripParticipantOrAdmin(trip, user);
     return this.ratingsService.findByTripId(id);
   }
 
@@ -165,20 +172,25 @@ export class TripsController {
     @Body() dto: CreateDisputeDto,
   ) {
     const trip = await this.tripsService.findById(id);
-    const isRider = trip.riderId === user.userId;
-    let isDriver = false;
-    if (!isRider && user.role === UserRole.DRIVER && trip.driverId) {
-      const driver = await this.driversService.getByUserId(user.userId);
-      isDriver = trip.driverId === driver.id;
-    }
-    if (!isRider && !isDriver) {
-      throw new ForbiddenException('Not a participant on this trip');
-    }
+    await this.assertTripParticipantOrAdmin(trip, user);
     return this.disputesService.create(id, user.userId, dto);
   }
 
   @Get(':id/disputes')
-  disputes(@Param('id') id: string) {
+  async disputes(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    const trip = await this.tripsService.findById(id);
+    await this.assertTripParticipantOrAdmin(trip, user);
     return this.disputesService.findByTrip(id);
+  }
+
+  /** Riders/drivers may only touch their own trip; admins may touch any. */
+  private async assertTripParticipantOrAdmin(trip: Trip, user: AuthenticatedUser): Promise<void> {
+    if (user.role === UserRole.ADMIN) return;
+    if (trip.riderId === user.userId) return;
+    if (user.role === UserRole.DRIVER && trip.driverId) {
+      const driver = await this.driversService.getByUserId(user.userId);
+      if (driver.id === trip.driverId) return;
+    }
+    throw new ForbiddenException('Not a participant on this trip');
   }
 }
