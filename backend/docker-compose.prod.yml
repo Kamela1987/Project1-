@@ -1,0 +1,56 @@
+# Full containerized stack (postgres + redis + the backend image itself),
+# distinct from docker-compose.yml which only runs postgres+redis for local
+# `npm run start:dev`. Use this to sanity-check the actual deployment
+# artifact (the Dockerfile) end to end, e.g.:
+#
+#   docker compose -f docker-compose.prod.yml up --build
+#
+# JWT_SECRET and MOBILE_MONEY_WEBHOOK_SECRET below are throwaway values for
+# local testing only — a real deployment supplies its own via the hosting
+# platform's secret store, never commits them here.
+services:
+  # postgis/postgis, not plain postgres — see docker-compose.yml's comment.
+  postgres:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: monze
+      POSTGRES_PASSWORD: monze
+      POSTGRES_DB: monze_ride
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U monze']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      JWT_SECRET: local-test-secret
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: monze
+      DB_PASSWORD: monze
+      DB_NAME: monze_ride
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MIGRATIONS_RUN: 'false'
+      MOBILE_MONEY_WEBHOOK_SECRET: local-test-secret
+    ports:
+      - '3000:3000'

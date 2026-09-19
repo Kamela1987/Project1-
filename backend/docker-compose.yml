@@ -1,0 +1,26 @@
+services:
+  # postgis/postgis (not plain postgres) — Phase 4 zone-based fare pricing
+  # (src/zones/) needs the PostGIS extension for point-in-polygon matching;
+  # see src/migrations/*-ZoneBoundary.ts.
+  postgres:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: monze
+      POSTGRES_PASSWORD: monze
+      POSTGRES_DB: monze_ride
+    ports:
+      - "5432:5432"
+    volumes:
+      - monze_postgres_data:/var/lib/postgresql/data
+
+  # Backs Phase 2 live location tracking (src/realtime/) — a fast,
+  # short-TTL cache of each online driver's last-known position.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+volumes:
+  monze_postgres_data:

@@ -1,0 +1,97 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  build-and-smoke-test:
+    runs-on: ubuntu-latest
+    services:
+      # postgis/postgis, not plain postgres — Phase 4 zone-based fare
+      # pricing needs the PostGIS extension (see src/migrations/*-ZoneBoundary.ts).
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: monze
+          POSTGRES_PASSWORD: monze
+          POSTGRES_DB: monze_ride
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U monze"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USERNAME: monze
+      DB_PASSWORD: monze
+      DB_NAME: monze_ride
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      JWT_SECRET: ci-test-secret
+      MOBILE_MONEY_WEBHOOK_SECRET: ci-test-secret
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+      # Exercises the same script the Docker image's entrypoint runs on
+      # deploy — see docker-entrypoint.sh — against the compiled dist/
+      # output and a real Postgres instance, not just `nest build` succeeding.
+      - run: npm run migration:run:prod
+
+      # Smoke test: boot the compiled app for real and hit /health, the
+      # same probe a container orchestrator would use. Confirms the app
+      # actually starts against real Postgres/Redis connections, not just
+      # that it compiles.
+      - name: Boot app and check /health
+        run: |
+          node dist/main.js &
+          APP_PID=$!
+          for i in $(seq 1 20); do
+            if curl -sf http://localhost:3000/health; then
+              echo "Health check passed"
+              kill $APP_PID
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Health check failed to pass within timeout"
+          kill $APP_PID || true
+          exit 1
+
+      - name: Build Docker image
+        run: docker build -t monze-ride-backend:ci .

@@ -1,0 +1,222 @@
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Payment, PaymentMethod, PaymentStatus } from '../entities/payment.entity';
+import { VehicleType } from '../entities/vehicle.entity';
+import { WalletService } from '../wallet/wallet.service';
+import { DriversService } from '../drivers/drivers.service';
+import { UsersService } from '../users/users.service';
+import {
+  DEFAULT_DEV_AUTO_COMPLETE_DELAY_MS,
+  MOBILE_MONEY_DEV_AUTO_COMPLETE_DELAY_MS_ENV,
+  MOBILE_MONEY_DEV_AUTO_COMPLETE_ENV,
+} from '../config/mobile-money.config';
+import { AUTO_PAYOUT_MIN_BALANCE_ENV, DEFAULT_AUTO_PAYOUT_MIN_BALANCE } from '../config/auto-payout.config';
+import { MobileMoneyService } from './mobile-money.service';
+import { RequestPayoutDto } from './dto/request-payout.dto';
+
+export interface AutoPayoutSummary {
+  processed: number;
+  totalAmount: number;
+  failed: number;
+}
+
+@Injectable()
+export class PaymentsService {
+  private readonly logger = new Logger(PaymentsService.name);
+
+  constructor(
+    @InjectRepository(Payment) private readonly payments: Repository<Payment>,
+    private readonly walletService: WalletService,
+    private readonly driversService: DriversService,
+    private readonly usersService: UsersService,
+    private readonly mobileMoneyService: MobileMoneyService,
+    private readonly config: ConfigService,
+  ) {}
+
+  /** Cash is settled the moment the driver marks the trip complete — see TripsService.complete(). */
+  async recordCashPayment(
+    tripId: string,
+    driverId: string,
+    riderId: string,
+    fareAmount: number,
+    vehicleType?: VehicleType,
+  ): Promise<Payment> {
+    const payment = await this.payments.save(
+      this.payments.create({
+        tripId,
+        driverId,
+        riderId,
+        method: PaymentMethod.CASH,
+        status: PaymentStatus.COLLECTED,
+        amount: fareAmount.toFixed(2),
+      }),
+    );
+    await this.walletService.applyTripCommission(driverId, tripId, fareAmount, vehicleType);
+    return payment;
+  }
+
+  /** Kicks off a MoMo/Airtel Money request-to-pay against the rider's phone. Trip completion doesn't wait for it — the payment resolves asynchronously. */
+  async initiateMobileMoneyPayment(
+    tripId: string,
+    driverId: string,
+    riderId: string,
+    riderPhoneNumber: string,
+    fareAmount: number,
+    method: PaymentMethod,
+  ): Promise<Payment> {
+    let payment = await this.payments.save(
+      this.payments.create({
+        tripId,
+        driverId,
+        riderId,
+        method,
+        status: PaymentStatus.PENDING,
+        amount: fareAmount.toFixed(2),
+      }),
+    );
+
+    const { providerReference } = await this.mobileMoneyService.requestToPay(
+      riderPhoneNumber,
+      fareAmount,
+      payment.id,
+      method,
+    );
+    payment.providerReference = providerReference;
+    payment = await this.payments.save(payment);
+
+    if (this.config.get(MOBILE_MONEY_DEV_AUTO_COMPLETE_ENV, 'true') === 'true') {
+      const delayMs = Number(
+        this.config.get(MOBILE_MONEY_DEV_AUTO_COMPLETE_DELAY_MS_ENV, DEFAULT_DEV_AUTO_COMPLETE_DELAY_MS),
+      );
+      setTimeout(() => {
+        this.handleCallback(payment.id, true).catch((err) =>
+          this.logger.error(`Dev auto-complete failed for payment ${payment.id}`, err),
+        );
+      }, delayMs);
+    }
+
+    return payment;
+  }
+
+  /**
+   * Resolves a pending mobile money payment — called by the provider
+   * webhook in production, or by the dev auto-complete timer above.
+   * Idempotent: a duplicate/late callback on an already-resolved payment
+   * is a no-op, since providers do sometimes retry webhooks.
+   */
+  async handleCallback(paymentId: string, success: boolean, providerReference?: string): Promise<Payment> {
+    const payment = await this.payments.findOneBy({ id: paymentId });
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+    if (payment.status !== PaymentStatus.PENDING) {
+      return payment;
+    }
+    if (providerReference) {
+      payment.providerReference = providerReference;
+    }
+
+    if (!success) {
+      payment.status = PaymentStatus.FAILED;
+      return this.payments.save(payment);
+    }
+
+    payment.status = PaymentStatus.COLLECTED;
+    const saved = await this.payments.save(payment);
+
+    if (payment.driverId) {
+      const driver = await this.driversService.findById(payment.driverId);
+      await this.walletService.creditTripEarning(
+        payment.driverId,
+        payment.tripId,
+        Number(payment.amount),
+        driver.vehicle?.type,
+      );
+    }
+
+    return saved;
+  }
+
+  async findById(paymentId: string): Promise<Payment> {
+    const payment = await this.payments.findOneBy({ id: paymentId });
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+    return payment;
+  }
+
+  async findByTripId(tripId: string): Promise<Payment | null> {
+    return this.payments.findOneBy({ tripId });
+  }
+
+  /** Driver cashes out a positive wallet balance (built up from mobile money trip earnings) to their phone. */
+  async requestPayout(
+    driverUserId: string,
+    dto: RequestPayoutDto,
+  ): Promise<{ amount: number; providerReference: string; balance: number }> {
+    const driver = await this.driversService.getByUserId(driverUserId);
+    const balance = await this.walletService.getBalance(driver.id);
+    if (dto.amount > balance) {
+      throw new BadRequestException(
+        `Payout of K${dto.amount.toFixed(2)} exceeds available balance of K${balance.toFixed(2)}`,
+      );
+    }
+
+    const user = await this.usersService.findById(driverUserId);
+    const phoneNumber = dto.phoneNumber ?? user.phoneNumber;
+    return this.executePayout(driver.id, dto.amount, dto.method, phoneNumber);
+  }
+
+  /**
+   * Sweeps every opted-in, approved driver's full wallet balance out
+   * automatically once it clears the configured minimum — see
+   * PayoutSchedulerService for what calls this on a cron, and
+   * `docs/MONZE_RIDE_ARCHITECTURE.md` §9 Phase 4. Deliberately independent
+   * of `requestPayout`'s on-demand flow: a driver who never opts in
+   * (`Driver.autoPayoutEnabled`) is completely unaffected. Isolates
+   * failures per-driver — one bad disbursement never blocks the rest of
+   * the batch.
+   */
+  async runAutoPayouts(): Promise<AutoPayoutSummary> {
+    const minBalance = Number(this.config.get(AUTO_PAYOUT_MIN_BALANCE_ENV, DEFAULT_AUTO_PAYOUT_MIN_BALANCE));
+    const drivers = await this.driversService.listAutoPayoutEligible();
+
+    const summary: AutoPayoutSummary = { processed: 0, totalAmount: 0, failed: 0 };
+    for (const driver of drivers) {
+      try {
+        if (!driver.payoutMethod) continue; // shouldn't happen — DriversService requires it to enable autoPayoutEnabled
+        const balance = await this.walletService.getBalance(driver.id);
+        if (balance < minBalance) continue;
+
+        const result = await this.executePayout(driver.id, balance, driver.payoutMethod, driver.user.phoneNumber);
+        summary.processed += 1;
+        summary.totalAmount = Math.round((summary.totalAmount + result.amount) * 100) / 100;
+        this.logger.log(
+          `Auto payout: driver ${driver.id} paid out K${result.amount.toFixed(2)} (ref ${result.providerReference})`,
+        );
+      } catch (err) {
+        summary.failed += 1;
+        this.logger.error(`Auto payout failed for driver ${driver.id}`, err as Error);
+      }
+    }
+    return summary;
+  }
+
+  private async executePayout(
+    driverId: string,
+    amount: number,
+    method: PaymentMethod,
+    phoneNumber: string,
+  ): Promise<{ amount: number; providerReference: string; balance: number }> {
+    const { providerReference } = await this.mobileMoneyService.disburse(
+      phoneNumber,
+      amount,
+      `payout-${driverId}-${Date.now()}`,
+      method,
+    );
+    const wallet = await this.walletService.recordPayout(driverId, amount, providerReference);
+    return { amount, providerReference, balance: Number(wallet.balance) };
+  }
+}
