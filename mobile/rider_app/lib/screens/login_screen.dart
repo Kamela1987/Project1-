@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../services/api_client.dart';
 import 'request_ride_screen.dart';
 
@@ -70,6 +71,22 @@ class _LoginScreenState extends State<LoginScreen> {
               width: double.infinity,
               fit: BoxFit.cover,
             ),
+          ),
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SvgPicture.asset(
+              'assets/images/motorbike_taxi.svg',
+              width: double.infinity,
+              height: 160,
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Fast, affordable rides around Monze',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.black54),
           ),
           const SizedBox(height: 24),
           Column(

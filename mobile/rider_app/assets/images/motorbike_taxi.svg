@@ -1,0 +1,66 @@
+<svg width="480" height="280" viewBox="0 0 480 280" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E0F2F1"/>
+      <stop offset="100%" stop-color="#F4FBFA"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="480" height="280" rx="16" fill="url(#skyGrad)"/>
+  <circle cx="412" cy="58" r="30" fill="#FFE0B2"/>
+
+  <rect x="0" y="232" width="480" height="48" fill="#CFE8E5"/>
+  <rect x="0" y="229" width="480" height="5" fill="#8FC7C1"/>
+
+  <rect x="28" y="156" width="44" height="76" rx="4" fill="#BFE2DE"/>
+  <rect x="82" y="176" width="30" height="56" rx="4" fill="#CDE9E5"/>
+  <rect x="362" y="164" width="38" height="68" rx="4" fill="#CDE9E5"/>
+
+  <path d="M14 168 H58" stroke="#5CA8A0" stroke-width="5" stroke-linecap="round" opacity="0.5"/>
+  <path d="M26 182 H62" stroke="#5CA8A0" stroke-width="5" stroke-linecap="round" opacity="0.35"/>
+
+  <!-- motorbike + riders, simplified flat-icon style -->
+  <g transform="translate(130,74)">
+    <!-- wheels -->
+    <circle cx="24" cy="132" r="30" fill="#22282B"/>
+    <circle cx="24" cy="132" r="12" fill="#4A5559"/>
+    <circle cx="200" cy="132" r="30" fill="#22282B"/>
+    <circle cx="200" cy="132" r="12" fill="#4A5559"/>
+
+    <!-- rear shock + frame -->
+    <path d="M24 132 L64 100" stroke="#22282B" stroke-width="6" stroke-linecap="round"/>
+    <path d="M64 100 H150" stroke="#00695C" stroke-width="10" stroke-linecap="round"/>
+    <path d="M150 100 L172 118 L200 132" stroke="#00695C" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- seat, sitting right on the frame line -->
+    <rect x="72" y="93" width="88" height="14" rx="7" fill="#004D40"/>
+    <!-- tank -->
+    <rect x="94" y="90" width="42" height="16" rx="8" fill="#FF8A50"/>
+    <!-- fork + handlebar -->
+    <path d="M172 118 L196 88" stroke="#22282B" stroke-width="7" stroke-linecap="round"/>
+    <path d="M186 82 L210 78" stroke="#22282B" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="200" cy="106" r="6" fill="#FFD54F"/>
+
+    <!-- passenger (rear seat, leaning slightly toward driver) -->
+    <g>
+      <path d="M78 42 Q92 30 100 44 L96 74 Q86 80 76 74 Z" fill="#FF7A45"/>
+      <circle cx="88" cy="26" r="13" fill="#FF7A45"/>
+      <rect x="77" y="20" width="22" height="10" rx="5" fill="#E85D2B"/>
+      <!-- arm reaching to driver's waist -->
+      <path d="M98 56 L126 66" stroke="#FF7A45" stroke-width="8" stroke-linecap="round"/>
+    </g>
+
+    <!-- driver (front seat, upright, hands on the bars) -->
+    <g>
+      <rect x="112" y="30" width="30" height="46" rx="15" fill="#00897B"/>
+      <circle cx="127" cy="26" r="13" fill="#00897B"/>
+      <rect x="116" y="20" width="22" height="10" rx="5" fill="#00695C"/>
+      <path d="M132 48 L182 82" stroke="#00897B" stroke-width="9" stroke-linecap="round"/>
+    </g>
+  </g>
+
+  <!-- caption chip -->
+  <g transform="translate(24,20)">
+    <rect width="150" height="34" rx="17" fill="#00695C"/>
+    <text x="75" y="22" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#FFFFFF" text-anchor="middle">Monze Ride</text>
+  </g>
+</svg>
