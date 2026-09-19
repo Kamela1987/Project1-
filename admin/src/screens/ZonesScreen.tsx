@@ -46,9 +46,10 @@ export function ZonesScreen() {
     <div>
       <h1 className="mb-4 text-2xl font-bold">Zones & fares</h1>
       <p className="mb-4 max-w-xl text-sm text-slate-500">
-        Fare rules aren't consumed by trip pricing yet — Phase 1/2 keeps fares manually entered by
-        the driver at trip completion (see backend/README.md). This is where that gets configured
-        ahead of an automated fare estimate.
+        A zone with a boundary and per-vehicle-type fare rules feeds the rider's real fare
+        estimate — configure that here. Trip completion still takes a driver-entered fare,
+        unchanged on purpose: a cash fare agreed in person can legitimately differ from the
+        estimate.
       </p>
 
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
