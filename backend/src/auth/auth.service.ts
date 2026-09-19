@@ -1,33 +1,25 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  Logger,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { Repository } from 'typeorm';
 import { User, UserRole } from '../entities/user.entity';
 import { OtpStore } from './otp.store';
+import { SmsService } from './sms.service';
 import { RequestOtpDto } from './dto/request-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 
 @Injectable()
 export class AuthService {
-  private readonly logger = new Logger(AuthService.name);
-
   constructor(
     @InjectRepository(User) private readonly users: Repository<User>,
     private readonly otpStore: OtpStore,
+    private readonly smsService: SmsService,
     private readonly jwtService: JwtService,
   ) {}
 
-  requestOtp({ phoneNumber }: RequestOtpDto): { sent: true } {
+  async requestOtp({ phoneNumber }: RequestOtpDto): Promise<{ sent: true }> {
     const code = this.otpStore.issue(phoneNumber);
-    // Dev-only: log the OTP instead of sending it. Wire a real SMS gateway
-    // (see architecture doc) before this touches real users.
-    this.logger.log(`OTP for ${phoneNumber}: ${code}`);
+    await this.smsService.send(phoneNumber, `Your Monze Ride verification code is ${code}. It expires in 5 minutes.`);
     return { sent: true };
   }
 

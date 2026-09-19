@@ -230,9 +230,19 @@ applies any pending ones automatically (`migrationsRun: true`); see
 
 ## Auth
 
-Phone + OTP, dev-mode only: `POST /auth/request-otp` logs a 4-digit code to
-the server console instead of sending an SMS. Exchange it for a JWT with
+Phone + OTP: `POST /auth/request-otp` issues a 4-digit code (5 min TTL,
+30s resend cooldown per phone number — see `src/auth/otp.store.ts`) and
+sends it via `src/auth/sms.service.ts`. Exchange it for a JWT with
 `POST /auth/verify-otp`.
+
+**SMS delivery** is real, not a stand-in like `mobile-money.service.ts` —
+it goes through [Africa's Talking](https://africastalking.com/), which
+reaches MTN, Airtel, and Zamtel numbers through one API (unlike mobile
+money, which needs a separate integration per network). Set
+`AFRICASTALKING_USERNAME` and `AFRICASTALKING_API_KEY` (see
+`.env.example`) to send for real; leave them unset for local dev/CI and
+the OTP is logged to the console instead (`[SmsService] [DEV] SMS to
+...`), with no network call made.
 
 ## Core endpoints
 
