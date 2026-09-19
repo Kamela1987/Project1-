@@ -38,4 +38,11 @@ export class PaymentsController {
   requestPayout(@CurrentUser() user: AuthenticatedUser, @Body() dto: RequestPayoutDto) {
     return this.paymentsService.requestPayout(user.userId, dto);
   }
+
+  /** Runs the same sweep PayoutSchedulerService's cron job runs, on demand — an ops escape hatch (and how this feature is verified without waiting for the cron). */
+  @Post('auto-payouts/run')
+  @Roles(UserRole.ADMIN)
+  runAutoPayouts() {
+    return this.paymentsService.runAutoPayouts();
+  }
 }

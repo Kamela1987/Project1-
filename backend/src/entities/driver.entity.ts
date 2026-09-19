@@ -1,6 +1,7 @@
 import { Column, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { User } from './user.entity';
 import { Vehicle } from './vehicle.entity';
+import { PaymentMethod } from './payment-method.enum';
 
 export enum DriverVerificationStatus {
   PENDING = 'pending',
@@ -36,6 +37,14 @@ export class Driver {
 
   @Column({ default: false })
   isOnline: boolean;
+
+  /** Opts into PaymentsService.runAutoPayouts sweeping their wallet balance out automatically — see PATCH /drivers/me/payout-settings. */
+  @Column({ default: false })
+  autoPayoutEnabled: boolean;
+
+  /** Required to enable autoPayoutEnabled (which provider to disburse to); optional otherwise — the on-demand `POST /payments/payout` flow always takes its own explicit method. */
+  @Column({ type: 'enum', enum: PaymentMethod, nullable: true })
+  payoutMethod?: PaymentMethod;
 
   @OneToOne(() => Vehicle, (vehicle) => vehicle.driver, { nullable: true })
   vehicle?: Vehicle;

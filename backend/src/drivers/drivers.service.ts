@@ -8,6 +8,7 @@ import { LocationService } from '../realtime/location.service';
 import { MIN_WALLET_BALANCE_TO_GO_ONLINE } from '../config/commission.config';
 import { RegisterDriverDto } from './dto/register-driver.dto';
 import { RegisterVehicleDto } from './dto/register-vehicle.dto';
+import { UpdatePayoutSettingsDto } from './dto/update-payout-settings.dto';
 
 @Injectable()
 export class DriversService {
@@ -59,6 +60,28 @@ export class DriversService {
       await this.locationService.clearLocation(driver.id);
     }
     return saved;
+  }
+
+  /** Self-service opt-in/out of PaymentsService.runAutoPayouts. */
+  async updatePayoutSettings(userId: string, dto: UpdatePayoutSettingsDto): Promise<Driver> {
+    const driver = await this.getByUserId(userId);
+    const method = dto.payoutMethod ?? driver.payoutMethod;
+    if (dto.autoPayoutEnabled && !method) {
+      throw new BadRequestException('payoutMethod is required to enable automatic payouts');
+    }
+    driver.autoPayoutEnabled = dto.autoPayoutEnabled;
+    if (dto.payoutMethod) {
+      driver.payoutMethod = dto.payoutMethod;
+    }
+    return this.drivers.save(driver);
+  }
+
+  /** Every approved, opted-in driver — what PaymentsService.runAutoPayouts sweeps. Needs `user` for their phone number to disburse to. */
+  async listAutoPayoutEligible(): Promise<Driver[]> {
+    return this.drivers.find({
+      where: { autoPayoutEnabled: true, verificationStatus: DriverVerificationStatus.APPROVED },
+      relations: ['user'],
+    });
   }
 
   /** Phase 1 stand-in for the admin dashboard's driver-approval screen (Phase 3). */

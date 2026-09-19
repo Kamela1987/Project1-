@@ -11,6 +11,7 @@ import { RegisterDriverDto } from './dto/register-driver.dto';
 import { RegisterVehicleDto } from './dto/register-vehicle.dto';
 import { SetOnlineDto } from './dto/set-online.dto';
 import { SettleWalletDto } from './dto/settle-wallet.dto';
+import { UpdatePayoutSettingsDto } from './dto/update-payout-settings.dto';
 import { DriversService } from './drivers.service';
 
 @Controller('drivers')
@@ -44,6 +45,13 @@ export class DriversController {
   @Roles(UserRole.DRIVER)
   setOnline(@CurrentUser() user: AuthenticatedUser, @Body() dto: SetOnlineDto) {
     return this.driversService.setOnline(user.userId, dto.isOnline);
+  }
+
+  /** Opt in/out of automatic wallet payouts (PaymentsService.runAutoPayouts) and set which mobile money provider to pay out to. */
+  @Patch('me/payout-settings')
+  @Roles(UserRole.DRIVER)
+  updatePayoutSettings(@CurrentUser() user: AuthenticatedUser, @Body() dto: UpdatePayoutSettingsDto) {
+    return this.driversService.updatePayoutSettings(user.userId, dto);
   }
 
   /** Driver's own commission balance + recent ledger entries. */

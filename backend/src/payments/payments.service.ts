@@ -12,8 +12,15 @@ import {
   MOBILE_MONEY_DEV_AUTO_COMPLETE_DELAY_MS_ENV,
   MOBILE_MONEY_DEV_AUTO_COMPLETE_ENV,
 } from '../config/mobile-money.config';
+import { AUTO_PAYOUT_MIN_BALANCE_ENV, DEFAULT_AUTO_PAYOUT_MIN_BALANCE } from '../config/auto-payout.config';
 import { MobileMoneyService } from './mobile-money.service';
 import { RequestPayoutDto } from './dto/request-payout.dto';
+
+export interface AutoPayoutSummary {
+  processed: number;
+  totalAmount: number;
+  failed: number;
+}
 
 @Injectable()
 export class PaymentsService {
@@ -159,14 +166,57 @@ export class PaymentsService {
 
     const user = await this.usersService.findById(driverUserId);
     const phoneNumber = dto.phoneNumber ?? user.phoneNumber;
+    return this.executePayout(driver.id, dto.amount, dto.method, phoneNumber);
+  }
+
+  /**
+   * Sweeps every opted-in, approved driver's full wallet balance out
+   * automatically once it clears the configured minimum — see
+   * PayoutSchedulerService for what calls this on a cron, and
+   * `docs/MONZE_RIDE_ARCHITECTURE.md` §9 Phase 4. Deliberately independent
+   * of `requestPayout`'s on-demand flow: a driver who never opts in
+   * (`Driver.autoPayoutEnabled`) is completely unaffected. Isolates
+   * failures per-driver — one bad disbursement never blocks the rest of
+   * the batch.
+   */
+  async runAutoPayouts(): Promise<AutoPayoutSummary> {
+    const minBalance = Number(this.config.get(AUTO_PAYOUT_MIN_BALANCE_ENV, DEFAULT_AUTO_PAYOUT_MIN_BALANCE));
+    const drivers = await this.driversService.listAutoPayoutEligible();
+
+    const summary: AutoPayoutSummary = { processed: 0, totalAmount: 0, failed: 0 };
+    for (const driver of drivers) {
+      try {
+        if (!driver.payoutMethod) continue; // shouldn't happen — DriversService requires it to enable autoPayoutEnabled
+        const balance = await this.walletService.getBalance(driver.id);
+        if (balance < minBalance) continue;
+
+        const result = await this.executePayout(driver.id, balance, driver.payoutMethod, driver.user.phoneNumber);
+        summary.processed += 1;
+        summary.totalAmount = Math.round((summary.totalAmount + result.amount) * 100) / 100;
+        this.logger.log(
+          `Auto payout: driver ${driver.id} paid out K${result.amount.toFixed(2)} (ref ${result.providerReference})`,
+        );
+      } catch (err) {
+        summary.failed += 1;
+        this.logger.error(`Auto payout failed for driver ${driver.id}`, err as Error);
+      }
+    }
+    return summary;
+  }
+
+  private async executePayout(
+    driverId: string,
+    amount: number,
+    method: PaymentMethod,
+    phoneNumber: string,
+  ): Promise<{ amount: number; providerReference: string; balance: number }> {
     const { providerReference } = await this.mobileMoneyService.disburse(
       phoneNumber,
-      dto.amount,
-      `payout-${driver.id}-${Date.now()}`,
-      dto.method,
+      amount,
+      `payout-${driverId}-${Date.now()}`,
+      method,
     );
-    const wallet = await this.walletService.recordPayout(driver.id, dto.amount, providerReference);
-
-    return { amount: dto.amount, providerReference, balance: Number(wallet.balance) };
+    const wallet = await this.walletService.recordPayout(driverId, amount, providerReference);
+    return { amount, providerReference, balance: Number(wallet.balance) };
   }
 }

@@ -315,6 +315,7 @@ the OTP is logged to the console instead (`[SmsService] [DEV] SMS to
 | POST | `/drivers/vehicle` | driver | Register a vehicle |
 | PATCH | `/drivers/online` | driver | Go online/offline (must be approved, and not owing too much commission) |
 | GET | `/drivers/me/wallet` | driver | Own commission balance + ledger history |
+| PATCH | `/drivers/me/payout-settings` | driver | Opt in/out of automatic payouts, set payout provider |
 | GET | `/drivers/me/rating` | driver | Own aggregate rating (`{ average, count }`) |
 | GET | `/drivers` | admin | Onboarding queue / all drivers (`?status=pending`) |
 | GET | `/drivers/:driverId` | admin | Full driver profile + wallet balance + rating |
@@ -339,6 +340,7 @@ the OTP is logged to the console instead (`[SmsService] [DEV] SMS to
 | GET | `/trips/:id/disputes` | participant/admin | This trip's disputes |
 | GET | `/payments/:id` | participant/admin | Payment detail by id |
 | POST | `/payments/payout` | driver | Cash out a positive wallet balance to mobile money |
+| POST | `/payments/auto-payouts/run` | admin | Run the automatic payout sweep on demand |
 | POST | `/payments/webhooks/momo` | webhook secret | MTN MoMo provider callback |
 | POST | `/payments/webhooks/airtel` | webhook secret | Airtel Money provider callback |
 | POST | `/zones` | admin | Create a pricing zone (optionally with a `boundary` polygon) |
@@ -439,6 +441,51 @@ malformed (non-closed-ring) boundary is rejected with 400, and confirmed a
 zone created with no boundary at all still works exactly as before this
 feature. `migration:generate` reports "no changes" afterward (entities and
 migration match exactly).
+
+## Driver payout automation (Phase 4)
+
+Until now, a driver's wallet balance (built up from mobile-money trip
+earnings — see "Mobile money" above) only ever left their wallet if they
+remembered to hit `POST /payments/payout` themselves. This adds an
+opt-in scheduled sweep that pays it out for them automatically:
+
+1. `PATCH /drivers/me/payout-settings` — a driver opts in
+   (`autoPayoutEnabled: true`) and picks which mobile money provider
+   (`payoutMethod`, `"momo"` or `"airtel"`) to be paid out to.
+   `payoutMethod` is required the first time (either in the same request
+   or already stored from before) — `DriversService.updatePayoutSettings`
+   rejects enabling it with neither. A driver who never opts in is
+   completely unaffected; the on-demand `POST /payments/payout` flow is
+   unchanged.
+2. `PaymentsService.runAutoPayouts()` sweeps every approved, opted-in
+   driver's **full** wallet balance out, once it's at least
+   `AUTO_PAYOUT_MIN_BALANCE` (default 50 ZMW — not worth a disbursement
+   fee below that). Reuses the same disbursement + ledger logic as the
+   on-demand payout (`PaymentsService`'s private `executePayout`), so a
+   sweep produces an identical `payout` ledger entry either way. One
+   driver's disbursement failing (e.g. the mock/real provider call
+   throwing) never blocks the rest of the batch — failures are caught and
+   counted per-driver, not fatal to the sweep.
+3. `PayoutSchedulerService` registers `runAutoPayouts` on a cron schedule
+   (`AUTO_PAYOUT_CRON`, default once daily at 02:00) — but only if
+   `AUTO_PAYOUT_ENABLED=true`. **Off by default**: with it unset, the cron
+   job isn't even registered (checkable at boot — nothing to wait on to
+   confirm it's off), not just skipped when it would've fired.
+4. `POST /payments/auto-payouts/run` (admin) runs the exact same sweep on
+   demand — an ops escape hatch, and how this feature is verified without
+   waiting for a cron to fire.
+
+Verified against a real local Postgres + Redis: completed a mobile-money
+trip to build up a driver's wallet balance, confirmed enabling
+`autoPayoutEnabled` without a `payoutMethod` is rejected with 400,
+enabled it with `momo`, triggered `POST /payments/auto-payouts/run` as
+admin and confirmed the driver's full balance was paid out (wallet back
+to 0, a `payout` ledger entry recorded, the mock disbursement logged),
+confirmed a second sweep immediately after processes 0 drivers (nothing
+left above the threshold), confirmed a driver role gets 403 on the
+admin-only sweep endpoint, and confirmed `AUTO_PAYOUT_ENABLED=true` with
+a custom `AUTO_PAYOUT_CRON` actually registers the job at boot (log line
+confirmed) while the default (unset) registers nothing.
 
 ## What's deliberately not here yet
 
