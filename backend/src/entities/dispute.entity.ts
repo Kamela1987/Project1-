@@ -19,7 +19,7 @@ export class Dispute {
   @Column({ name: 'trip_id' })
   tripId: string;
 
-  @Column({ name: 'raised_by_user_id' })
+  @Column('uuid', { name: 'raised_by_user_id' })
   raisedByUserId: string;
 
   @Column()

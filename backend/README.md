@@ -179,6 +179,41 @@ Verified against a real local Postgres: a rider, the trip's driver, and an
 admin can each read all six endpoints for a real trip; an uninvolved third
 account gets `403 Forbidden` from all six.
 
+## Database migrations
+
+`synchronize: true` (auto-diffing the schema from entities on every boot,
+no history, no rollback) is gone. Schema changes are now real TypeORM
+migrations in [`src/migrations/`](src/migrations), applied via
+[`src/data-source.ts`](src/data-source.ts) (a plain, CLI-importable
+`DataSource` — kept separate from `AppModule`'s `TypeOrmModule.forRootAsync`,
+which still gets its config through Nest's `ConfigService`; the two are
+intentionally not shared code, just kept in sync by hand, since the CLI has
+no DI container to hand a config service to):
+
+```bash
+npm run migration:generate -- src/migrations/SomeChange   # after editing an entity
+npm run migration:run                                      # apply pending migrations
+npm run migration:revert                                    # roll back the last one
+```
+
+`AppModule` sets `migrationsRun: true`, so `npm run start:dev` still applies
+pending migrations automatically for local dev convenience — a real
+deployment would run `npm run migration:run` as its own step instead of
+relying on app boot to touch the schema.
+
+Generating the initial migration caught a real bug: several denormalized
+foreign-key-style columns (`Payment.driverId`/`riderId`, `Wallet.driverId`,
+`LedgerEntry.tripId`, `Rating.driverId`/`riderId`, `Dispute.raisedByUserId`)
+had no backing TypeORM relation for the column type to be inferred from, so
+they'd been silently created as `varchar` instead of `uuid` this whole time
+under `synchronize`. All now explicitly typed `@Column('uuid', ...)`.
+
+Verified against a real local Postgres: generated the initial migration,
+confirmed `migration:generate` then reports "no changes" (entities and
+migration match exactly), ran a full trip lifecycle end-to-end against the
+migrated (not synchronized) schema, and confirmed `migration:revert` cleanly
+drops everything it created.
+
 ## Running locally
 
 ```bash
@@ -188,9 +223,10 @@ npm install
 npm run start:dev
 ```
 
-The API listens on `http://localhost:3000`. Tables are created automatically
-via TypeORM `synchronize` for local dev — swap for real migrations before
-this touches a shared or production database.
+The API listens on `http://localhost:3000`. Tables are created by running
+the migrations in [`src/migrations/`](src/migrations) — `npm run start:dev`
+applies any pending ones automatically (`migrationsRun: true`); see
+"Database migrations" above.
 
 ## Auth
 

@@ -19,10 +19,10 @@ export class Rating {
   @Column({ name: 'trip_id', unique: true })
   tripId: string;
 
-  @Column({ name: 'driver_id' })
+  @Column('uuid', { name: 'driver_id' })
   driverId: string;
 
-  @Column({ name: 'rider_id' })
+  @Column('uuid', { name: 'rider_id' })
   riderId: string;
 
   @Column('int')

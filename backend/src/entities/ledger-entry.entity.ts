@@ -29,7 +29,7 @@ export class LedgerEntry {
   @Column({ name: 'wallet_id' })
   walletId: string;
 
-  @Column({ name: 'trip_id', nullable: true })
+  @Column('uuid', { name: 'trip_id', nullable: true })
   tripId?: string;
 
   @Column({ type: 'enum', enum: LedgerEntryType })

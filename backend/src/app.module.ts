@@ -50,9 +50,15 @@ import { FareRule } from './entities/fare-rule.entity';
           Zone,
           FareRule,
         ],
-        // synchronize is fine for Phase 1 local dev; replace with real
-        // migrations before this touches a shared/prod database.
-        synchronize: true,
+        migrations: [__dirname + '/migrations/*.{ts,js}'],
+        // Real migrations now (see src/migrations/, src/data-source.ts) —
+        // synchronize's live schema-diffing was fine for early scaffolding
+        // but gave no audit trail and no safe rollback. migrationsRun
+        // keeps `npm run start:dev` convenient for local dev; a real
+        // deployment would run `npm run migration:run` as its own step
+        // instead of relying on app boot to apply schema changes.
+        synchronize: false,
+        migrationsRun: true,
       }),
     }),
     AuthModule,

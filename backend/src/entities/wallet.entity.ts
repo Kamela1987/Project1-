@@ -12,7 +12,7 @@ export class Wallet {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'driver_id', unique: true })
+  @Column('uuid', { name: 'driver_id', unique: true })
   driverId: string;
 
   @Column('decimal', { precision: 10, scale: 2, default: 0 })
