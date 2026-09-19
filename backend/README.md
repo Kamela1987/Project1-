@@ -265,35 +265,63 @@ actually uses), booted the compiled `dist/main.js` with
 npm test          # unit tests (Jest)
 npm run test:watch
 npm run test:cov
+npm run test:e2e  # e2e tests — needs a real Postgres/PostGIS + Redis, see below
 ```
 
-Unit tests only — plain repository mocks (`jest.fn()`, or `@nestjs/testing`'s
-`getRepositoryToken` where DI is worth exercising), no database, no
-network. They complement rather than replace this README's own real-infra
-verification: every feature section above (mobile money, live tracking,
-zone pricing, payout automation, multi-town, referrals, ...) was also
-manually driven end-to-end against a real Postgres + Redis when it was
-built, which is a different, broader kind of check than a unit test can
-give (migrations actually applying, PostGIS queries actually matching,
-WebSocket events actually round-tripping). Unit tests cover business
-logic in isolation instead — the fare formula, wallet/commission
-arithmetic, OTP cooldown/expiry, referral crediting firing exactly once,
-multi-town driver-matching scoping — so a regression there fails fast in
-CI without needing a live database.
+**Unit tests** (`src/**/*.spec.ts`) — plain repository mocks (`jest.fn()`,
+or `@nestjs/testing`'s `getRepositoryToken` where DI is worth exercising),
+no database, no network. Coverage is deliberately partial, not
+exhaustive: services with non-trivial logic worth pinning down
+(`WalletService`, `TripsService`, `ZonesService`, `ReferralsService`,
+`OtpStore`, `geo.util`), not every controller/DTO/thin pass-through
+service in the codebase. Growing this suite as new logic lands is more
+valuable than backfilling 100% coverage of what's already shipped and
+already verified the other way.
 
-Coverage is deliberately partial, not exhaustive: services with
-non-trivial logic worth pinning down (`WalletService`, `TripsService`,
-`ZonesService`, `ReferralsService`, `OtpStore`, `geo.util`), not every
-controller/DTO/thin pass-through service in the codebase. Growing this
-suite as new logic lands is more valuable than backfilling 100% coverage
-of what's already shipped and already verified the other way.
+**E2E tests** (`test/**/*.e2e-spec.ts`) — real HTTP requests (`supertest`)
+against the genuine, fully-wired `AppModule`: real Postgres/PostGIS, real
+Redis, the same `ValidationPipe` `main.ts` uses. The only stub is
+`SmsService` (`test/utils/test-app.ts`'s `FakeSmsService`), the one
+external-I/O boundary an e2e test shouldn't actually call out to — it
+records the OTP so a test can read it back instead of grepping logs.
+Covers what a mocked unit test structurally can't: OTP request/verify
+round trips (including the resend cooldown and wrong-code rejection), a
+full cash trip lifecycle with real commission math verified via the
+driver's wallet endpoint, referral-reward crediting firing exactly once
+on a rider's real first completed trip, trip-access authorization (403
+for a non-participant), and — the highest-value case — real PostGIS
+point-in-polygon zone/town boundary matching driven end-to-end through
+`/trips/fare-estimate` and `/trips`, not just that the boundary column
+accepts data. WebSocket/Socket.IO flows (live GPS, town-scoped driver
+matching) are out of scope for this HTTP-only suite.
+
+Needs a real, already-migrated database and Redis:
+```bash
+docker compose up -d
+npm run migration:run
+DB_HOST=localhost DB_PORT=5432 DB_USERNAME=monze DB_PASSWORD=monze \
+DB_NAME=monze_ride REDIS_HOST=localhost REDIS_PORT=6379 \
+MIGRATIONS_RUN=false JWT_SECRET=e2e-test-secret npm run test:e2e
+```
+Safe to rerun repeatedly against the same database — each spec file
+generates unique phone numbers/plate numbers, and the zone/town boundary
+test offsets its coordinates so it never collides with leftover data from
+a previous run.
+
+Together these complement rather than replace this README's own
+real-infra verification: every feature section above (mobile money, live
+tracking, zone pricing, payout automation, multi-town, referrals, ...) was
+also manually driven end-to-end against a real Postgres + Redis when it
+was built. The e2e suite now runs the highest-value subset of that same
+kind of check automatically, in CI, on every push.
 
 ## CI
 
 - **`.github/workflows/backend-ci.yml`** — on changes under `backend/`:
   install, lint, run the Jest unit tests, build, run `migration:run:prod`
-  against a real Postgres service container, boot the compiled app
-  against that Postgres + a Redis service container and poll
+  against a real Postgres service container, run the e2e suite
+  (`npm run test:e2e`) against that same migrated Postgres/PostGIS + a
+  Redis service container, boot the compiled app against them and poll
   `GET /health` as a smoke test, then build the Docker image to catch
   any drift between the image and what CI just verified.
 - **`.github/workflows/admin-ci.yml`** — on changes under `admin/`:
@@ -665,11 +693,6 @@ pressure.
 
 ## What's deliberately not here yet
 
-- No automated e2e/integration test suite (real HTTP requests against a
-  real running app + database, in CI) — everything above was verified
-  that way by hand, repeatedly, but not codified into a suite that runs
-  itself. The unit tests (see "Tests" above) cover business logic in
-  isolation, not the full request/response/DB round-trip.
 - No pagination on `GET /drivers` or `GET /trips` — fine at Monze's scale
 - No audit trail of which admin approved a driver or resolved a dispute —
   every admin account has the same capabilities today
