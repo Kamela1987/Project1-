@@ -11,6 +11,8 @@ import { ZonesService } from '../zones/zones.service';
 import { FareRulesService } from '../fare-rules/fare-rules.service';
 import { TownsService } from '../towns/towns.service';
 import { ReferralsService } from '../referrals/referrals.service';
+import { DispatchService } from '../realtime/dispatch.service';
+import { Page } from '../common/pagination.dto';
 import { VehicleType } from '../entities/vehicle.entity';
 import { haversineKm } from '../common/geo.util';
 import { RequestTripDto } from './dto/request-trip.dto';
@@ -56,6 +58,7 @@ export class TripsService {
     private readonly fareRulesService: FareRulesService,
     private readonly townsService: TownsService,
     private readonly referralsService: ReferralsService,
+    private readonly dispatchService: DispatchService,
   ) {}
 
   /**
@@ -113,6 +116,7 @@ export class TripsService {
     });
     const saved = await this.trips.save(trip);
     await this.recordEvent(saved.id, TripStatus.REQUESTED);
+    await this.dispatchService.offerToNearestDriver(saved);
     return saved;
   }
 
@@ -160,13 +164,15 @@ export class TripsService {
     return this.trips.find({ where: { riderId }, order: { requestedAt: 'DESC' } });
   }
 
-  /** Admin's live-monitoring feed — every trip, optionally filtered by status and/or town. */
-  async listAll(status?: TripStatus, townId?: string): Promise<Trip[]> {
-    return this.trips.find({
+  /** Admin's live-monitoring feed — every trip, optionally filtered by status and/or town, paginated. */
+  async listAll(status: TripStatus | undefined, townId: string | undefined, page: number, pageSize: number): Promise<Page<Trip>> {
+    const [items, total] = await this.trips.findAndCount({
       where: { ...(status ? { status } : {}), ...(townId ? { townId } : {}) },
       order: { requestedAt: 'DESC' },
-      take: 200,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
     });
+    return { items, total, page, pageSize };
   }
 
   async findById(id: string): Promise<Trip> {

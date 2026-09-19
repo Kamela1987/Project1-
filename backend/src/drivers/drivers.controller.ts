@@ -7,6 +7,7 @@ import { UserRole } from '../entities/user.entity';
 import { WalletService } from '../wallet/wallet.service';
 import { RatingsService } from '../ratings/ratings.service';
 import { DriverVerificationStatus } from '../entities/driver.entity';
+import { PaginationQueryDto, resolvePagination } from '../common/pagination.dto';
 import { RegisterDriverDto } from './dto/register-driver.dto';
 import { RegisterVehicleDto } from './dto/register-vehicle.dto';
 import { SetOnlineDto } from './dto/set-online.dto';
@@ -74,11 +75,12 @@ export class DriversController {
     return this.ratingsService.getDriverAggregate(driver.id);
   }
 
-  /** Onboarding queue by default (`?status=pending`) or every driver. */
+  /** Onboarding queue by default (`?status=pending`) or every driver, paginated (`?page=&pageSize=`, defaults 1/50). */
   @Get()
   @Roles(UserRole.ADMIN)
-  listAll(@Query('status') status?: DriverVerificationStatus) {
-    return this.driversService.listAll(status);
+  listAll(@Query('status') status: DriverVerificationStatus | undefined, @Query() pagination: PaginationQueryDto) {
+    const { page, pageSize } = resolvePagination(pagination);
+    return this.driversService.listAll(status, page, pageSize);
   }
 
   /** Single driver's full profile (vehicle, wallet balance, rating) for the admin dashboard's detail view. */
@@ -95,8 +97,8 @@ export class DriversController {
 
   @Patch(':driverId/approve')
   @Roles(UserRole.ADMIN)
-  approve(@Param('driverId') driverId: string) {
-    return this.driversService.approve(driverId);
+  approve(@CurrentUser() admin: AuthenticatedUser, @Param('driverId') driverId: string) {
+    return this.driversService.approve(driverId, admin.userId);
   }
 
   /** Admin records a driver paying down commission they owe the platform (cash to the office, or a manually-logged MoMo remittance in Phase 1). */

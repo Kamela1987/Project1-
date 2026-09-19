@@ -41,6 +41,30 @@ export class LocationService implements OnModuleDestroy {
     await this.redis.del(this.key(driverId));
   }
 
+  /**
+   * Every online driver's last-known position — the candidate pool
+   * DispatchService offers a new trip request to, nearest first. A plain
+   * `KEYS` scan is fine at Monze's scale (this key space is bounded by
+   * "drivers currently online", not total drivers ever); a deployment
+   * with enough concurrent online drivers to make that costly would
+   * reach for a Redis geo set (`GEOADD`/`GEOSEARCH`) instead.
+   */
+  async listAllLocations(): Promise<(DriverLocation & { driverId: string })[]> {
+    const keys = await this.redis.keys('driver:location:*');
+    if (!keys.length) {
+      return [];
+    }
+    const values = await this.redis.mget(...keys);
+    return keys
+      .map((key, i) => {
+        const raw = values[i];
+        if (!raw) return null;
+        const driverId = key.slice('driver:location:'.length);
+        return { driverId, ...(JSON.parse(raw) as DriverLocation) };
+      })
+      .filter((v): v is DriverLocation & { driverId: string } => v !== null);
+  }
+
   private key(driverId: string): string {
     return `driver:location:${driverId}`;
   }

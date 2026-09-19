@@ -132,7 +132,7 @@ describe('Zones + towns (e2e)', () => {
       .get(`/trips?townId=${townId}`)
       .set(...authHeader(adminToken))
       .expect(200);
-    expect(tripsInTown.body.some((t: { id: string }) => t.id === tripRes.body.id)).toBe(true);
+    expect(tripsInTown.body.items.some((t: { id: string }) => t.id === tripRes.body.id)).toBe(true);
   });
 
   it('404s creating a zone with an unknown townId', async () => {

@@ -304,15 +304,19 @@ platforms use:
    as it goes online. This is distance-sorting of the *driver's own pull*
    of open requests, not the expanding-radius *push* dispatch below —
    see `backend/README.md`'s "Driver matching" section for details.
-2. Rank candidates by distance (and optionally driver rating).
-3. Offer the trip to the top candidate with a short accept window (e.g. 15s);
-   if declined or timed out, offer to the next.
-4. If no driver accepts within a configurable window, notify the rider and
-   suggest retrying or calling dispatch directly.
-
-Steps 2–4 (active push/offer dispatch with an accept timeout) are still not
-built — drivers currently see and accept from the sorted list themselves,
-there's no server-initiated offer/timeout loop yet.
+2. ✅ scaffolded — Rank candidates by distance (driver rating is not yet a
+   ranking factor, just distance — see `backend/README.md`'s "Active driver
+   dispatch" section).
+3. ✅ scaffolded — `DispatchService`
+   (`backend/src/realtime/dispatch.service.ts`) offers the trip to the top
+   candidate over the socket (`trip:offer`) with a 15s accept window; if
+   the window passes with no accept, it cascades to the next-nearest
+   online driver, and so on through the whole online driver pool.
+4. Still not built — no explicit "notify the rider, suggest retrying" step
+   once the entire online driver pool has been offered a trip and none
+   accepted. The trip simply stays `requested` and visible via the
+   pull-based `GET /trips/available` (step 1) — a rider isn't told the
+   push cascade specifically ran out, just sees their trip still pending.
 
 **Growth path:** if the driver pool grows into the hundreds and multiple
 towns are added, this can evolve into a proper matching service that scores

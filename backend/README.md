@@ -137,6 +137,32 @@ status, for live monitoring), [`src/zones/`](src/zones) +
 trip can raise one via `POST /trips/:id/rating`'s sibling
 `POST /trips/:id/disputes`; an admin resolves it).
 
+**Pagination**: `GET /drivers` and `GET /trips` both take `?page=&pageSize=`
+(1-based, defaults `page=1`/`pageSize=50`, `pageSize` capped at 200 —
+`src/common/pagination.dto.ts`) and return `{ items, total, page, pageSize }`
+instead of a bare array, so a growing driver/trip list can never turn into
+an unbounded query. The admin dashboard (`DriversScreen.tsx`,
+`TripsScreen.tsx`) reads `.items` and shows a simple Prev/Next control
+built from `total`, verified against a real local Postgres with more than
+one page of drivers (22 seeded, `pageSize=20`) — page 1 shows "1–20 of
+22" with `Next` enabled, page 2 shows "21–22 of 22" with `Next` correctly
+disabled.
+
+**Audit trail**: every admin account has the same capabilities today (no
+role tiers), so `src/audit/` records *who* did an admin-only action —
+`PATCH /drivers/:driverId/approve` and `PATCH /disputes/:id/resolve` both
+write an immutable `AuditLogEntry` (`src/entities/audit-log-entry.entity.ts`,
+same append-only shape as `LedgerEntry`/`TripStatusEvent`: actor, action,
+target id, and optional metadata — a dispute's `resolutionNote` in that
+case). `GET /audit-log` (admin-only, same `?page=&pageSize=` pagination as
+above) returns each entry enriched with the actor's name and phone number
+(`AuditService.listAll` batch-looks-up the page's distinct actors, not an
+N+1 per row). The admin dashboard's new "Audit log" screen
+(`AuditLogScreen.tsx`) lists it chronologically. Verified against a real
+local Postgres: approving a driver and resolving a dispute each produce
+exactly one correctly-attributed entry, a non-admin gets `403` reading the
+log, and the dashboard screen renders it correctly in a real browser.
+
 **Security fix that came with this**: `AuthService.verifyOtp` used to trust
 a client-supplied `role: "admin"` on signup — anyone could self-register as
 admin. It now rejects that outright; the only way to create an admin
@@ -448,10 +474,46 @@ This intentionally reuses the Redis live-location cache rather than adding
 PostGIS: Redis was already the architecture's assigned store for "where are
 all online drivers right now" (see `docs/MONZE_RIDE_ARCHITECTURE.md` §7),
 and a driver's own request list is small enough that in-process haversine
-sorting is enough. Still not built: active push/offer dispatch to a driver
-with an accept timeout (right now drivers just poll/see the sorted list),
-and PostGIS-based zone-boundary geofencing, which remains a separate
-feature (pricing zones, not driver matching).
+sorting is enough. Still not built: PostGIS-based zone-boundary geofencing
+for matching itself, which remains a separate feature (pricing zones, not
+driver matching) — see "Active driver dispatch" below for the push/offer
+piece, which **is** now built.
+
+## Active driver dispatch (`src/realtime/dispatch.service.ts`)
+
+`GET /trips/available` (above) is pull-based — a driver has to be looking.
+`DispatchService` adds the push half: the moment `TripsService.request()`
+saves a new trip, it offers that trip to the single nearest online driver
+first, over the socket (`trip:offer`, driver's own `driver:<userId>` room —
+see the WebSocket table above), with a 15s accept window. A driver who
+doesn't respond — no explicit decline needed, the timeout alone is enough —
+gets excluded from *that trip's* candidate pool, and the offer cascades to
+the next-nearest online driver, and so on until every currently-online
+driver has been offered it once.
+
+This is purely additive — it never touches the trip state machine.
+Accepting is still the existing `PATCH /trips/:id/accept`; any driver
+(offered or not) can call it, so the pull-based list above remains the
+real fallback if no one responds to a push offer, or a driver would rather
+just browse and pick. A trip that outlives its whole candidate pool
+without being accepted simply stops cascading and stays `requested`,
+visible via `GET /trips/available` same as always — it isn't lost, and if
+a new driver comes online later while it's still open, it gets offered to
+them too.
+
+**Known limitation, honestly stated**: candidate-exclusion state
+(`offeredDriverIds`) is in-memory, per-process — correct for the single
+backend instance this project runs, but a multi-instance deployment would
+need to move it to Redis (e.g. a `dispatch:<tripId>:offered` set) so every
+instance agrees on who's already been offered a given trip.
+
+Verified against a real local Postgres + Redis with two connected driver
+sockets and a raw `socket.io-client` script (same method used for the
+original live-tracking work): the nearer of two online drivers receives
+the offer and the farther one doesn't; a driver who never responds sees
+the offer cascade to the next-nearest driver ~15s later; and a driver who
+accepts via the REST endpoint within the window stops the cascade — the
+next driver never receives an offer for that trip.
 
 ## Zone-based fare pricing (Phase 4)
 
@@ -693,6 +755,11 @@ pressure.
 
 ## What's deliberately not here yet
 
-- No pagination on `GET /drivers` or `GET /trips` — fine at Monze's scale
-- No audit trail of which admin approved a driver or resolved a dispute —
-  every admin account has the same capabilities today
+- Real MTN MoMo / Airtel Money integration — see "Mobile money (Phase 2)"
+  above; the dev-auto-complete stub needs real sandbox credentials before
+  this can process actual payments.
+- A real SMS gateway — OTP delivery needs a real provider (e.g. Africa's
+  Talking, Twilio) wired into `SmsService` before this can reach real phones.
+- No role tiers within "admin" — every admin account can approve drivers,
+  resolve disputes, and settle wallets; the audit trail above records who
+  did what, but doesn't yet gate any action behind a finer-grained role.

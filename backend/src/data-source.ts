@@ -14,6 +14,7 @@ import { Zone } from './entities/zone.entity';
 import { FareRule } from './entities/fare-rule.entity';
 import { Town } from './entities/town.entity';
 import { ReferralReward } from './entities/referral-reward.entity';
+import { AuditLogEntry } from './entities/audit-log-entry.entity';
 
 /**
  * CLI-only entry point for `npm run typeorm` / `migration:*` scripts (see
@@ -47,6 +48,7 @@ export const AppDataSource = new DataSource({
     FareRule,
     Town,
     ReferralReward,
+    AuditLogEntry,
   ],
   migrations: [__dirname + '/migrations/*.{ts,js}'],
   synchronize: false,

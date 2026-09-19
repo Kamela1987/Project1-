@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
-import type { Trip, TripStatus } from '../lib/types';
+import type { Page, Trip, TripStatus } from '../lib/types';
 
 const STATUSES: { label: string; value?: TripStatus }[] = [
   { label: 'All' },
@@ -21,17 +21,23 @@ const STATUS_COLORS: Record<TripStatus, string> = {
   cancelled: 'bg-red-100 text-red-800',
 };
 
+const PAGE_SIZE = 20;
+
 export function TripsScreen() {
   const [statusFilter, setStatusFilter] = useState<TripStatus | ''>('');
+  const [page, setPage] = useState(1);
   const [trips, setTrips] = useState<Trip[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   async function refresh() {
     try {
-      const query = statusFilter ? `?status=${statusFilter}` : '';
-      const result = await api.get<Trip[]>(`/trips${query}`);
-      setTrips(result);
+      const query = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+      if (statusFilter) query.set('status', statusFilter);
+      const result = await api.get<Page<Trip>>(`/trips?${query}`);
+      setTrips(result.items);
+      setTotal(result.total);
       setError(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not load trips');
@@ -46,7 +52,12 @@ export function TripsScreen() {
     const timer = setInterval(refresh, 5000);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter]);
+  }, [statusFilter, page]);
+
+  function selectStatus(value: TripStatus | '') {
+    setStatusFilter(value);
+    setPage(1);
+  }
 
   return (
     <div>
@@ -54,7 +65,7 @@ export function TripsScreen() {
         <h1 className="text-2xl font-bold">Live trips</h1>
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as TripStatus | '')}
+          onChange={(e) => selectStatus(e.target.value as TripStatus | '')}
           className="rounded border border-slate-300 px-3 py-1.5 text-sm"
         >
           {STATUSES.map((s) => (
@@ -101,6 +112,30 @@ export function TripsScreen() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {!loading && total > 0 && (
+        <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
+          <span>
+            {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="rounded border border-slate-300 px-3 py-1 disabled:opacity-40"
+            >
+              Prev
+            </button>
+            <button
+              onClick={() => setPage((p) => p + 1)}
+              disabled={page * PAGE_SIZE >= total}
+              className="rounded border border-slate-300 px-3 py-1 disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

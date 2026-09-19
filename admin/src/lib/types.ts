@@ -1,5 +1,13 @@
 export type UserRole = 'rider' | 'driver' | 'admin';
 
+/** The envelope GET /drivers and GET /trips return (`?page=&pageSize=`, defaults 1/50 — see backend README's "Pagination" section). */
+export interface Page<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface User {
   id: string;
   phoneNumber: string;
@@ -84,4 +92,17 @@ export interface Dispute {
   resolutionNote?: string | null;
   createdAt: string;
   resolvedAt?: string | null;
+}
+
+export type AuditAction = 'driver.approved' | 'dispute.resolved';
+
+export interface AuditLogEntry {
+  id: string;
+  actorUserId: string;
+  actorName: string | null;
+  actorPhoneNumber: string | null;
+  action: AuditAction;
+  targetId: string;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
 }

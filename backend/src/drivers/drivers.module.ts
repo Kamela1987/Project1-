@@ -5,6 +5,7 @@ import { Vehicle } from '../entities/vehicle.entity';
 import { WalletModule } from '../wallet/wallet.module';
 import { RatingsModule } from '../ratings/ratings.module';
 import { RealtimeModule } from '../realtime/realtime.module';
+import { AuditModule } from '../audit/audit.module';
 import { DriversController } from './drivers.controller';
 import { DriversService } from './drivers.service';
 
@@ -14,6 +15,7 @@ import { DriversService } from './drivers.service';
     WalletModule,
     RatingsModule,
     RealtimeModule,
+    AuditModule,
   ],
   controllers: [DriversController],
   providers: [DriversService],
