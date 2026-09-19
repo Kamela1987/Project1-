@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { DriversModule } from './drivers/drivers.module';
@@ -54,11 +55,13 @@ import { FareRule } from './entities/fare-rule.entity';
         // Real migrations now (see src/migrations/, src/data-source.ts) —
         // synchronize's live schema-diffing was fine for early scaffolding
         // but gave no audit trail and no safe rollback. migrationsRun
-        // keeps `npm run start:dev` convenient for local dev; a real
-        // deployment would run `npm run migration:run` as its own step
-        // instead of relying on app boot to apply schema changes.
+        // keeps `npm run start:dev` convenient for local dev. The Docker
+        // image (see backend/Dockerfile) sets MIGRATIONS_RUN=false and runs
+        // `npm run migration:run:prod` as its own deploy step instead —
+        // multiple app instances racing to apply migrations on every boot
+        // isn't something you want in production.
         synchronize: false,
-        migrationsRun: true,
+        migrationsRun: config.get('MIGRATIONS_RUN', 'true') === 'true',
       }),
     }),
     AuthModule,
@@ -72,5 +75,6 @@ import { FareRule } from './entities/fare-rule.entity';
     ZonesModule,
     FareRulesModule,
   ],
+  controllers: [AppController],
 })
 export class AppModule {}

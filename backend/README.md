@@ -196,10 +196,11 @@ npm run migration:run                                      # apply pending migra
 npm run migration:revert                                    # roll back the last one
 ```
 
-`AppModule` sets `migrationsRun: true`, so `npm run start:dev` still applies
-pending migrations automatically for local dev convenience — a real
-deployment would run `npm run migration:run` as its own step instead of
-relying on app boot to touch the schema.
+`AppModule` sets `migrationsRun: true` by default (`MIGRATIONS_RUN` env
+var), so `npm run start:dev` still applies pending migrations
+automatically for local dev convenience. The Docker image sets
+`MIGRATIONS_RUN=false` and runs migrations as an explicit deploy step
+instead — see "Deployment" below.
 
 Generating the initial migration caught a real bug: several denormalized
 foreign-key-style columns (`Payment.driverId`/`riderId`, `Wallet.driverId`,
@@ -213,6 +214,66 @@ confirmed `migration:generate` then reports "no changes" (entities and
 migration match exactly), ran a full trip lifecycle end-to-end against the
 migrated (not synchronized) schema, and confirmed `migration:revert` cleanly
 drops everything it created.
+
+## Deployment
+
+`Dockerfile` is a multi-stage build: a `build` stage with full
+`devDependencies` compiles TypeScript to `dist/`, then a `runtime` stage
+installs only production dependencies and copies in the compiled output —
+no source, no dev tooling, in the image that actually runs.
+
+`docker-entrypoint.sh` runs `npm run migration:run:prod` (the plain
+`typeorm` CLI against the compiled `dist/data-source.js` — no `ts-node`
+needed in the runtime image) before `exec`ing into the app, but only when
+`MIGRATIONS_RUN=false`. That's deliberate: if you scale to more than one
+backend instance, you don't want every replica racing to apply migrations
+on every boot, so migrations become a one-time step ahead of the rollout
+instead of something app boot does implicitly (`AppModule`'s
+`migrationsRun: true` default is for local dev convenience only, see
+"Database migrations" above).
+
+```bash
+docker build -t monze-ride-backend .
+# or, to sanity-check the built image against real Postgres/Redis containers:
+docker compose -f docker-compose.prod.yml up --build
+```
+
+Required env vars in production (see `.env.example` for the full list,
+including the SMS/mobile-money provider credentials from the sections
+above): `JWT_SECRET`, `DB_HOST`/`DB_PORT`/`DB_USERNAME`/`DB_PASSWORD`/`DB_NAME`,
+`REDIS_HOST`/`REDIS_PORT`, `MOBILE_MONEY_WEBHOOK_SECRET`, and
+`MIGRATIONS_RUN=false` (paired with running `npm run migration:run:prod`
+as its own deploy step — the entrypoint does this automatically inside
+the container). `GET /health` returns `{ ok: true }` once the app has a
+live DB connection — point your platform's health check / load balancer
+at it.
+
+Deployable to any container host (Fly.io, Render, a plain VPS with Docker
+Compose, ECS, etc.) — nothing here is platform-specific beyond needing a
+reachable Postgres and Redis.
+
+Verified locally (no Docker daemon available in this dev environment, so
+the image build/compose orchestration itself is unverified): built and
+linted clean, ran `migration:run:prod` against a real Postgres with
+`ts-node` absent from the command (confirming the CLI path the container
+actually uses), booted the compiled `dist/main.js` with
+`MIGRATIONS_RUN=false`, and confirmed `GET /health` returns `{ ok: true }`
+— the same sequence `.github/workflows/backend-ci.yml` runs on every push.
+
+## CI
+
+- **`.github/workflows/backend-ci.yml`** — on changes under `backend/`:
+  install, lint, build, run `migration:run:prod` against a real Postgres
+  service container, boot the compiled app against that Postgres + a Redis
+  service container and poll `GET /health` as a smoke test, then build the
+  Docker image to catch any drift between the image and what CI just
+  verified.
+- **`.github/workflows/admin-ci.yml`** — on changes under `admin/`:
+  install, lint, build.
+
+Neither mobile app has a CI workflow — there's no Flutter SDK available in
+this project's dev/CI environment to run one against (see each app's
+README).
 
 ## Running locally
 
