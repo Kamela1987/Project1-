@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
 import Redis from 'ioredis';
 import { REDIS_CLIENT } from './redis.provider';
 
@@ -17,8 +17,13 @@ export interface DriverLocation {
 const LOCATION_TTL_SECONDS = 60;
 
 @Injectable()
-export class LocationService {
+export class LocationService implements OnModuleDestroy {
   constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
+
+  /** Closes the ioredis connection when the app shuts down — otherwise it's an open handle Node (and Jest, in e2e runs) waits on. */
+  async onModuleDestroy(): Promise<void> {
+    await this.redis.quit();
+  }
 
   async setLocation(driverId: string, lat: number, lng: number): Promise<DriverLocation> {
     const location: DriverLocation = { lat, lng, updatedAt: new Date().toISOString() };

@@ -13,7 +13,7 @@ module.exports = tseslint.config(
     },
   },
   {
-    files: ['**/*.spec.ts'],
+    files: ['**/*.spec.ts', '**/*.e2e-spec.ts'],
     languageOptions: {
       globals: {
         describe: 'readonly',

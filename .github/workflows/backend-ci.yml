@@ -74,6 +74,14 @@ jobs:
       # output and a real Postgres instance, not just `nest build` succeeding.
       - run: npm run migration:run:prod
 
+      # Real HTTP requests (supertest) against a real, fully-wired Nest app —
+      # genuine Postgres/PostGIS + Redis, only SmsService stubbed. Runs after
+      # migrations so the schema already matches; MIGRATIONS_RUN=false so the
+      # app doesn't also try to run them itself on boot. See test/*.e2e-spec.ts.
+      - run: npm run test:e2e
+        env:
+          MIGRATIONS_RUN: 'false'
+
       # Smoke test: boot the compiled app for real and hit /health, the
       # same probe a container orchestrator would use. Confirms the app
       # actually starts against real Postgres/Redis connections, not just
