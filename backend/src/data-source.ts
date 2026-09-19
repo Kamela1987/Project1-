@@ -12,6 +12,7 @@ import { Rating } from './entities/rating.entity';
 import { Dispute } from './entities/dispute.entity';
 import { Zone } from './entities/zone.entity';
 import { FareRule } from './entities/fare-rule.entity';
+import { Town } from './entities/town.entity';
 
 /**
  * CLI-only entry point for `npm run typeorm` / `migration:*` scripts (see
@@ -43,6 +44,7 @@ export const AppDataSource = new DataSource({
     Dispute,
     Zone,
     FareRule,
+    Town,
   ],
   migrations: [__dirname + '/migrations/*.{ts,js}'],
   synchronize: false,

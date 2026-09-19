@@ -19,4 +19,14 @@ export class Zone {
 
   @Column('geometry', { spatialFeatureType: 'Polygon', srid: 4326, nullable: true, select: false })
   boundary?: string | null;
+
+  /**
+   * Which town this pricing zone belongs to (multi-town support, Phase 4)
+   * — optional, and deliberately a plain typed column with no
+   * `@ManyToOne`/FK constraint (same denormalized-reference style as
+   * Payment.driverId/riderId): a zone predating multi-town support, or one
+   * an admin just hasn't assigned yet, still works exactly as before.
+   */
+  @Column('uuid', { name: 'town_id', nullable: true })
+  townId?: string | null;
 }

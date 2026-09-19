@@ -67,11 +67,11 @@ export class TripsController {
     return this.tripsService.listMine(user.userId);
   }
 
-  /** Admin's live-monitoring feed. `?status=in_progress` etc. to filter. */
+  /** Admin's live-monitoring feed. `?status=in_progress` and/or `?townId=` to filter — useful once more than one town is configured. */
   @Get()
   @Roles(UserRole.ADMIN)
-  listAll(@Query('status') status?: TripStatus) {
-    return this.tripsService.listAll(status);
+  listAll(@Query('status') status?: TripStatus, @Query('townId') townId?: string) {
+    return this.tripsService.listAll(status, townId);
   }
 
   @Get(':id')

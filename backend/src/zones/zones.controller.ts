@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -17,10 +17,10 @@ export class ZonesController {
     return this.zonesService.create(dto);
   }
 
-  /** Public read — riders/drivers don't need admin rights to see what zones exist. */
+  /** Public read — riders/drivers don't need admin rights to see what zones exist. `?townId=` narrows to one town's zones. */
   @Get()
-  findAll() {
-    return this.zonesService.findAll();
+  findAll(@Query('townId') townId?: string) {
+    return this.zonesService.findAll(townId);
   }
 
   @Delete(':id')

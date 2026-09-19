@@ -10,6 +10,7 @@ import { RatingsModule } from '../ratings/ratings.module';
 import { DisputesModule } from '../disputes/disputes.module';
 import { ZonesModule } from '../zones/zones.module';
 import { FareRulesModule } from '../fare-rules/fare-rules.module';
+import { TownsModule } from '../towns/towns.module';
 import { TripsController } from './trips.controller';
 import { TripsService } from './trips.service';
 
@@ -24,6 +25,7 @@ import { TripsService } from './trips.service';
     DisputesModule,
     ZonesModule,
     FareRulesModule,
+    TownsModule,
   ],
   controllers: [TripsController],
   providers: [TripsService],

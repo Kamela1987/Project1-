@@ -1,9 +1,14 @@
-import { ArrayMinSize, IsArray, IsOptional, IsString, MinLength } from 'class-validator';
+import { ArrayMinSize, IsArray, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
 
 export class CreateZoneDto {
   @IsString()
   @MinLength(1)
   name: string;
+
+  /** Optional multi-town grouping (Phase 4) — must be an existing Town's id if given. */
+  @IsOptional()
+  @IsUUID()
+  townId?: string;
 
   /**
    * Optional polygon boundary for point-in-zone matching (see

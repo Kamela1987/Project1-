@@ -64,6 +64,20 @@ export class Trip {
   dropoffLandmark?: string;
 
   /**
+   * Which town the pickup point falls in (multi-town support, Phase 4) —
+   * computed once at request time via TownsService.findContainingPoint and
+   * cached here (never recomputed later), so scoping driver matching by
+   * town (TripsService.listAvailable) doesn't re-run PostGIS on every
+   * lookup. `null` for a pickup outside every configured town's boundary,
+   * or when no towns are configured at all — that trip is then visible to
+   * every driver regardless of location, same as this platform's behavior
+   * before multi-town support existed. No FK constraint, for the same
+   * reason as Zone.townId — see that column's comment.
+   */
+  @Column('uuid', { name: 'town_id', nullable: true })
+  townId?: string | null;
+
+  /**
    * Rider's vehicle preference (car, minibus, or motorbike). Nullable means
    * "any" — useful for riders who just want the fastest/cheapest match.
    * Motorbikes are typically cheaper and faster through town traffic, so

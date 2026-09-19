@@ -2,20 +2,27 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Zone } from '../entities/zone.entity';
+import { TownsService } from '../towns/towns.service';
 import { CreateZoneDto } from './dto/create-zone.dto';
 
 const POSTGRES_UNIQUE_VIOLATION = '23505';
 
 @Injectable()
 export class ZonesService {
-  constructor(@InjectRepository(Zone) private readonly zones: Repository<Zone>) {}
+  constructor(
+    @InjectRepository(Zone) private readonly zones: Repository<Zone>,
+    private readonly townsService: TownsService,
+  ) {}
 
   async create(dto: CreateZoneDto): Promise<Zone> {
     if (dto.boundary) {
       this.assertClosedRing(dto.boundary);
     }
+    if (dto.townId) {
+      await this.townsService.findById(dto.townId); // 404s if the town doesn't exist
+    }
     try {
-      const zone = this.zones.create({ name: dto.name });
+      const zone = this.zones.create({ name: dto.name, townId: dto.townId });
       await this.zones.save(zone);
       if (dto.boundary) {
         const geojson = JSON.stringify({ type: 'Polygon', coordinates: [dto.boundary] });
@@ -33,8 +40,8 @@ export class ZonesService {
     }
   }
 
-  findAll(): Promise<Zone[]> {
-    return this.zones.find({ order: { name: 'ASC' } });
+  findAll(townId?: string): Promise<Zone[]> {
+    return this.zones.find({ where: townId ? { townId } : {}, order: { name: 'ASC' } });
   }
 
   async findById(id: string): Promise<Zone> {

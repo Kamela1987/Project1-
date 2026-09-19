@@ -329,7 +329,7 @@ the OTP is logged to the console instead (`[SmsService] [DEV] SMS to
 | PATCH | `/trips/:id/complete` | driver | Complete the trip, record/collect the fare |
 | PATCH | `/trips/:id/cancel` | rider | Cancel a not-yet-started trip |
 | GET | `/trips/mine` | rider | Trip history |
-| GET | `/trips` | admin | Every trip, live-monitoring feed (`?status=in_progress` etc.) |
+| GET | `/trips` | admin | Every trip, live-monitoring feed (`?status=in_progress`, `?townId=`) |
 | GET | `/trips/:id` | participant/admin | Trip detail |
 | GET | `/trips/:id/location` | participant/admin | Driver's last-known live position — REST fallback for the WebSocket, `null` if unavailable |
 | GET | `/trips/:id/payment` | participant/admin | This trip's payment (status, method) — `null` if not created yet |
@@ -343,12 +343,15 @@ the OTP is logged to the console instead (`[SmsService] [DEV] SMS to
 | POST | `/payments/auto-payouts/run` | admin | Run the automatic payout sweep on demand |
 | POST | `/payments/webhooks/momo` | webhook secret | MTN MoMo provider callback |
 | POST | `/payments/webhooks/airtel` | webhook secret | Airtel Money provider callback |
-| POST | `/zones` | admin | Create a pricing zone (optionally with a `boundary` polygon) |
-| GET | `/zones` | any | List zones |
+| POST | `/zones` | admin | Create a pricing zone (optionally with a `boundary` polygon and/or `townId`) |
+| GET | `/zones` | any | List zones (`?townId=` to narrow to one town) |
 | DELETE | `/zones/:id` | admin | Delete a zone (cascades its fare rules) |
 | POST | `/zones/:zoneId/fare-rules` | admin | Add a fare rule for a zone + vehicle type |
 | GET | `/zones/:zoneId/fare-rules` | any | List a zone's fare rules |
 | DELETE | `/fare-rules/:id` | admin | Delete a fare rule |
+| POST | `/towns` | admin | Create a town (optionally with a `boundary` polygon) |
+| GET | `/towns` | any | List towns |
+| DELETE | `/towns/:id` | admin | Delete a town |
 | GET | `/disputes` | admin | Dispute inbox (`?status=open`/`resolved`) |
 | PATCH | `/disputes/:id/resolve` | admin | Resolve a dispute with a required note |
 
@@ -375,7 +378,9 @@ and sorts ascending; a driver who hasn't pinged a position yet (or whose
 ping expired) still gets the full list, just in chronological order —
 nothing is ever filtered out by distance, only reordered. Going offline
 (`PATCH /drivers/me/online`) clears the driver's cached position
-immediately.
+immediately. Once multi-town support is configured (see below), the same
+cached position also scopes this list to the driver's own town — that's
+the one case something *is* filtered out, not just reordered.
 
 This intentionally reuses the Redis live-location cache rather than adding
 PostGIS: Redis was already the architecture's assigned store for "where are
@@ -486,6 +491,65 @@ left above the threshold), confirmed a driver role gets 403 on the
 admin-only sweep endpoint, and confirmed `AUTO_PAYOUT_ENABLED=true` with
 a custom `AUTO_PAYOUT_CRON` actually registers the job at boot (log line
 confirmed) while the default (unset) registers nothing.
+
+## Multi-town support (Phase 4)
+
+Until now, driver matching had no concept of geography beyond distance —
+a driver in one town would see (and be sorted alongside) every open trip
+request platform-wide, just ranked last if it was far away. This adds a
+**Town**: the same PostGIS boundary-polygon shape as Zone, one level up
+the geographic hierarchy (a Town can contain many Zones — see below), and
+uses it to scope driver-trip matching so a driver in one town never sees
+another town's requests at all.
+
+1. `POST /towns` (admin), `GET /towns` (any), `DELETE /towns/:id` (admin)
+   — same CRUD shape as `/zones`, including the optional `boundary`
+   field (a closed ring of `[lng, lat]` pairs) and the same "no boundary
+   yet still works as a plain admin grouping" fallback.
+2. `TripsService.request()` tags each new trip with its pickup's town
+   (`Trip.townId`, computed once via `TownsService.findContainingPoint`
+   and cached on the row — never recomputed). A pickup outside every
+   configured town (or a deployment with no towns configured at all)
+   gets `townId: null`.
+3. `GET /trips/available` (`TripsService.listAvailable`) scopes to the
+   requesting driver's own town, found the same way — via their cached
+   position from the idle `driver:location` ping (see "Driver matching"
+   above). A trip with `townId: null`, or a driver whose own town can't
+   be determined, is **never** filtered out — town-scoping only ever
+   hides a trip confidently placed in a *different* town. A single-town
+   deployment with no `Town` rows configured at all behaves exactly as
+   before this feature existed.
+4. `GET /trips?townId=` (admin) and `GET /zones?townId=` narrow the
+   admin dashboard's live-monitoring feed and zone list once more than
+   one town exists. `Zone` gained an optional `townId` (`POST /zones`'s
+   new `townId` field, 404s if it doesn't reference a real town) so an
+   admin can group pricing zones under the town they belong to.
+
+`Trip.townId` and `Zone.townId` are deliberately plain typed columns with
+no FK constraint (same denormalized-reference style as
+`Payment.driverId`/`riderId`) — a `Trip` is a permanent historical
+record and must never cascade-delete just because a `Town` is removed
+later.
+
+Verified against a real local Postgres + Redis: created two
+non-overlapping towns (Monze, Mazabuka) with real boundary polygons,
+pinged two drivers' idle locations into each, requested one trip inside
+each town plus one outside both — confirmed each driver's
+`GET /trips/available` showed only their own town's trip plus the
+town-less one (never the other town's), confirmed a driver who never
+pinged a location still got the full unscoped list (all three trips,
+chronological), confirmed the admin `?townId=` filter on `/trips`
+returned only that town's trips, and confirmed a zone created with a
+real `townId` linked correctly while one with a bogus `townId` was
+rejected with 404. `migration:generate` reports "no changes" afterward.
+
+**Caught along the way:** `src/data-source.ts` (the plain `DataSource`
+the TypeORM CLI uses — see "Database migrations" above) keeps its own
+entity list separate from `AppModule`'s, and had fallen out of sync —
+`migration:generate` silently produced a migration missing the new
+`Town` entity's table entirely until `Town` was added there too. Worth
+knowing if a future entity addition's generated migration looks
+suspiciously incomplete.
 
 ## What's deliberately not here yet
 

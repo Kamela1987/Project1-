@@ -13,6 +13,7 @@ import { RatingsModule } from './ratings/ratings.module';
 import { DisputesModule } from './disputes/disputes.module';
 import { ZonesModule } from './zones/zones.module';
 import { FareRulesModule } from './fare-rules/fare-rules.module';
+import { TownsModule } from './towns/towns.module';
 import { User } from './entities/user.entity';
 import { Driver } from './entities/driver.entity';
 import { Vehicle } from './entities/vehicle.entity';
@@ -25,6 +26,7 @@ import { Rating } from './entities/rating.entity';
 import { Dispute } from './entities/dispute.entity';
 import { Zone } from './entities/zone.entity';
 import { FareRule } from './entities/fare-rule.entity';
+import { Town } from './entities/town.entity';
 
 @Module({
   imports: [
@@ -54,6 +56,7 @@ import { FareRule } from './entities/fare-rule.entity';
           Dispute,
           Zone,
           FareRule,
+          Town,
         ],
         migrations: [__dirname + '/migrations/*.{ts,js}'],
         // Real migrations now (see src/migrations/, src/data-source.ts) —
@@ -78,6 +81,7 @@ import { FareRule } from './entities/fare-rule.entity';
     DisputesModule,
     ZonesModule,
     FareRulesModule,
+    TownsModule,
   ],
   controllers: [AppController],
 })

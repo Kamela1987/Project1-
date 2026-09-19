@@ -9,6 +9,7 @@ import { UsersService } from '../users/users.service';
 import { PaymentsService } from '../payments/payments.service';
 import { ZonesService } from '../zones/zones.service';
 import { FareRulesService } from '../fare-rules/fare-rules.service';
+import { TownsService } from '../towns/towns.service';
 import { VehicleType } from '../entities/vehicle.entity';
 import { haversineKm } from '../common/geo.util';
 import { RequestTripDto } from './dto/request-trip.dto';
@@ -52,6 +53,7 @@ export class TripsService {
     private readonly paymentsService: PaymentsService,
     private readonly zonesService: ZonesService,
     private readonly fareRulesService: FareRulesService,
+    private readonly townsService: TownsService,
   ) {}
 
   /**
@@ -91,10 +93,20 @@ export class TripsService {
     return { zoneId: zone.id, zoneName: zone.name, distanceKm, estDurationMin, estimates };
   }
 
+  /**
+   * Tags the trip with its pickup's town (multi-town support, Phase 4),
+   * computed once here and cached on the row — see Trip.townId's comment.
+   * A pickup outside every configured town boundary (or no towns
+   * configured at all, e.g. a single-town Monze deployment) gets `null`,
+   * which `listAvailable` treats as visible to every driver — this never
+   * makes an existing single-town setup behave any differently.
+   */
   async request(riderId: string, dto: RequestTripDto): Promise<Trip> {
+    const town = await this.townsService.findContainingPoint(dto.pickupLat, dto.pickupLng);
     const trip = this.trips.create({
       riderId,
       status: TripStatus.REQUESTED,
+      townId: town?.id ?? null,
       ...dto,
     });
     const saved = await this.trips.save(trip);
@@ -105,20 +117,33 @@ export class TripsService {
   /**
    * All open requests a driver can currently offer to accept. When the
    * driver's own last-known position is available (see
-   * realtime/location.gateway.ts's idle `driver:location` ping), sorts by
-   * distance to each pickup instead of request time — closer trips first,
-   * per docs/MONZE_RIDE_ARCHITECTURE.md §7. Never filters trips out just
-   * because they're far away; a driver should always be able to see every
-   * open request, just in a more useful order.
+   * realtime/location.gateway.ts's idle `driver:location` ping):
+   *  - Scoped to the driver's own town (multi-town support, Phase 4): a
+   *    driver in one town never sees another town's requests, found the
+   *    same way a trip's own town was tagged (TownsService.findContainingPoint
+   *    on the driver's position). A driver outside every configured town,
+   *    or a trip with no town tag (see Trip.townId), is never filtered
+   *    out by this — only trips confidently placed in a *different* town
+   *    are hidden, so a deployment with no towns configured is completely
+   *    unaffected.
+   *  - Sorted by distance to each pickup instead of request time — closer
+   *    trips first, per docs/MONZE_RIDE_ARCHITECTURE.md §7.
+   * Distance-sorting never filters trips out just because they're far
+   * away; only the town scoping above ever removes a trip from the list.
    */
   async listAvailable(driverLat?: number, driverLng?: number): Promise<(Trip & { distanceKm?: number })[]> {
-    const trips = await this.trips.find({
+    let trips = await this.trips.find({
       where: { status: TripStatus.REQUESTED },
       order: { requestedAt: 'ASC' },
     });
 
     if (driverLat === undefined || driverLng === undefined) {
       return trips;
+    }
+
+    const driverTown = await this.townsService.findContainingPoint(driverLat, driverLng);
+    if (driverTown) {
+      trips = trips.filter((trip) => trip.townId === null || trip.townId === driverTown.id);
     }
 
     return trips
@@ -133,10 +158,10 @@ export class TripsService {
     return this.trips.find({ where: { riderId }, order: { requestedAt: 'DESC' } });
   }
 
-  /** Admin's live-monitoring feed — every trip, optionally filtered by status. */
-  async listAll(status?: TripStatus): Promise<Trip[]> {
+  /** Admin's live-monitoring feed — every trip, optionally filtered by status and/or town. */
+  async listAll(status?: TripStatus, townId?: string): Promise<Trip[]> {
     return this.trips.find({
-      where: status ? { status } : {},
+      where: { ...(status ? { status } : {}), ...(townId ? { townId } : {}) },
       order: { requestedAt: 'DESC' },
       take: 200,
     });
