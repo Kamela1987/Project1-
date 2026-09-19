@@ -31,6 +31,7 @@ describe('TripsService', () => {
   let fareRulesService: any;
   let townsService: any;
   let referralsService: any;
+  let dispatchService: any;
   let service: TripsService;
 
   beforeEach(() => {
@@ -52,6 +53,7 @@ describe('TripsService', () => {
     fareRulesService = { findOne: jest.fn() };
     townsService = { findContainingPoint: jest.fn() };
     referralsService = { rewardReferrerForFirstTrip: jest.fn() };
+    dispatchService = { offerToNearestDriver: jest.fn() };
 
     service = new TripsService(
       trips,
@@ -63,6 +65,7 @@ describe('TripsService', () => {
       fareRulesService,
       townsService,
       referralsService,
+      dispatchService,
     );
   });
 

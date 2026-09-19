@@ -448,10 +448,46 @@ This intentionally reuses the Redis live-location cache rather than adding
 PostGIS: Redis was already the architecture's assigned store for "where are
 all online drivers right now" (see `docs/MONZE_RIDE_ARCHITECTURE.md` §7),
 and a driver's own request list is small enough that in-process haversine
-sorting is enough. Still not built: active push/offer dispatch to a driver
-with an accept timeout (right now drivers just poll/see the sorted list),
-and PostGIS-based zone-boundary geofencing, which remains a separate
-feature (pricing zones, not driver matching).
+sorting is enough. Still not built: PostGIS-based zone-boundary geofencing
+for matching itself, which remains a separate feature (pricing zones, not
+driver matching) — see "Active driver dispatch" below for the push/offer
+piece, which **is** now built.
+
+## Active driver dispatch (`src/realtime/dispatch.service.ts`)
+
+`GET /trips/available` (above) is pull-based — a driver has to be looking.
+`DispatchService` adds the push half: the moment `TripsService.request()`
+saves a new trip, it offers that trip to the single nearest online driver
+first, over the socket (`trip:offer`, driver's own `driver:<userId>` room —
+see the WebSocket table above), with a 15s accept window. A driver who
+doesn't respond — no explicit decline needed, the timeout alone is enough —
+gets excluded from *that trip's* candidate pool, and the offer cascades to
+the next-nearest online driver, and so on until every currently-online
+driver has been offered it once.
+
+This is purely additive — it never touches the trip state machine.
+Accepting is still the existing `PATCH /trips/:id/accept`; any driver
+(offered or not) can call it, so the pull-based list above remains the
+real fallback if no one responds to a push offer, or a driver would rather
+just browse and pick. A trip that outlives its whole candidate pool
+without being accepted simply stops cascading and stays `requested`,
+visible via `GET /trips/available` same as always — it isn't lost, and if
+a new driver comes online later while it's still open, it gets offered to
+them too.
+
+**Known limitation, honestly stated**: candidate-exclusion state
+(`offeredDriverIds`) is in-memory, per-process — correct for the single
+backend instance this project runs, but a multi-instance deployment would
+need to move it to Redis (e.g. a `dispatch:<tripId>:offered` set) so every
+instance agrees on who's already been offered a given trip.
+
+Verified against a real local Postgres + Redis with two connected driver
+sockets and a raw `socket.io-client` script (same method used for the
+original live-tracking work): the nearer of two online drivers receives
+the offer and the farther one doesn't; a driver who never responds sees
+the offer cascade to the next-nearest driver ~15s later; and a driver who
+accepts via the REST endpoint within the window stops the cascade — the
+next driver never receives an offer for that trip.
 
 ## Zone-based fare pricing (Phase 4)
 

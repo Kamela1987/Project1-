@@ -6,10 +6,11 @@ import { AuthModule } from '../auth/auth.module';
 import { redisProvider } from './redis.provider';
 import { LocationService } from './location.service';
 import { LocationGateway } from './location.gateway';
+import { DispatchService } from './dispatch.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Driver, Trip]), AuthModule],
-  providers: [redisProvider, LocationService, LocationGateway],
-  exports: [LocationService],
+  providers: [redisProvider, LocationService, LocationGateway, DispatchService],
+  exports: [LocationService, DispatchService],
 })
 export class RealtimeModule {}

@@ -48,6 +48,13 @@ export class LocationGateway implements OnGatewayConnection {
       const payload = await this.jwtService.verifyAsync<{ sub: string; role: string }>(token);
       socket.data.userId = payload.sub;
       socket.data.role = payload.role;
+
+      // A driver's own room, keyed by userId — how DispatchService pushes a
+      // `trip:offer` to one specific driver without needing to track socket
+      // ids (a driver may reconnect with a new socket at any time).
+      if (payload.role === 'driver') {
+        await socket.join(this.driverRoom(payload.sub));
+      }
     } catch (err) {
       this.logger.warn(`Rejected socket connection: ${(err as Error).message}`);
       socket.emit('error', 'Unauthorized');
@@ -126,6 +133,11 @@ export class LocationGateway implements OnGatewayConnection {
 
   private room(tripId: string): string {
     return `trip:${tripId}`;
+  }
+
+  /** Exposed so DispatchService (same module) can target one driver's room without needing its own socket server instance. */
+  driverRoom(driverUserId: string): string {
+    return `driver:${driverUserId}`;
   }
 
   private extractToken(socket: Socket): string {
