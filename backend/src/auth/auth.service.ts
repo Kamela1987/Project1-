@@ -21,7 +21,7 @@ export class AuthService {
 
   async requestOtp({ phoneNumber }: RequestOtpDto): Promise<{ sent: true }> {
     const code = this.otpStore.issue(phoneNumber);
-    await this.smsService.send(phoneNumber, `Your Monze Ride verification code is ${code}. It expires in 5 minutes.`);
+    await this.smsService.send(phoneNumber, `Your Monze Moto verification code is ${code}. It expires in 5 minutes.`);
     return { sent: true };
   }
 

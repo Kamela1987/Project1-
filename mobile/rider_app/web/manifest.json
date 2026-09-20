@@ -1,11 +1,11 @@
 {
-    "name": "Monze Ride",
-    "short_name": "Monze Ride",
+    "name": "Monze Moto",
+    "short_name": "Monze Moto",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "Monze Ride — request a ride around Monze, Zambia.",
+    "description": "Monze Moto — request a ride around Monze, Zambia.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

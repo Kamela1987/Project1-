@@ -16,7 +16,7 @@ export function Layout() {
     <div className="flex min-h-screen">
       <aside className="w-56 shrink-0 border-r border-slate-200 bg-white p-4">
         <div className="mb-6 px-2">
-          <div className="text-lg font-bold text-teal-700">Monze Ride</div>
+          <div className="text-lg font-bold text-teal-700">Monze Moto</div>
           <div className="text-xs text-slate-500">Admin</div>
         </div>
         <nav className="flex flex-col gap-1">

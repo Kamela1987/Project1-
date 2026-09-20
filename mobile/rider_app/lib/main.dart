@@ -11,7 +11,7 @@ class MonzeRiderApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Monze Ride',
+      title: 'Monze Moto',
       theme: ThemeData(colorSchemeSeed: Colors.teal, useMaterial3: true),
       home: const LoginScreen(),
     );
