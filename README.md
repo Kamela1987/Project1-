@@ -187,6 +187,17 @@ that's the odds compounding, not bad luck - so compare ROI, not win rate, to
 see which is actually paying off. Bets logged before `--legs` existed have no
 `legs` column and are treated as singles.
 
+## Paper-trading bot
+
+`paper_trading_bot/` runs an SMA-crossover strategy automatically against
+Binance's **spot testnet** - fake funds on a real order book, never real
+money. See `paper_trading_bot/README.md` for setup.
+
+```bash
+python3 paper_trading_bot/bot.py --self-test    # no network, checks the strategy math
+python3 paper_trading_bot/bot.py --once --dry-run
+```
+
 ## Known limits
 
 - These are free public feeds with no key, so they can rate-limit or go down; a

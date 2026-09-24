@@ -2,6 +2,8 @@
 digests/
 tech_news.log
 bets.csv
+paper_trading_bot/state.json
+paper_trading_bot/trades.csv
 
 # Secrets - never commit these
 .env
