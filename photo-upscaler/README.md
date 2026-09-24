@@ -43,6 +43,19 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --app-dir . --host 0.0.0.0 --port 8000
 ```
 
+**Known issue after a fresh install (both Docker and manual):** `basicsr==1.4.2`
+imports `torchvision.transforms.functional_tensor`, which torchvision removed
+in 0.17+ — every `/api/enhance` request 500s with `No module named
+'torchvision.transforms.functional_tensor'` until this is patched. The
+Dockerfile patches it automatically; for a manual install, run this once
+after `pip install`:
+
+```bash
+sed -i \
+  's/from torchvision.transforms.functional_tensor import rgb_to_grayscale/from torchvision.transforms.functional import rgb_to_grayscale/' \
+  .venv/lib/python3.*/site-packages/basicsr/data/degradations.py
+```
+
 ## GPU acceleration
 
 If you have an NVIDIA GPU, install the CUDA build of PyTorch matching your
