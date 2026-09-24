@@ -1,11 +1,11 @@
 {
-    "name": "Monze Ride — Driver",
+    "name": "Monze Moto — Driver",
     "short_name": "Monze Driver",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "Monze Ride driver app — accept trip requests, track earnings, go online.",
+    "description": "Monze Moto driver app — accept trip requests, track earnings, go online.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

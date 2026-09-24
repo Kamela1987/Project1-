@@ -1,0 +1,39 @@
+<svg width="240" height="150" viewBox="0 0 240 150" xmlns="http://www.w3.org/2000/svg">
+  <!-- transparent-background motorbike + riders, for compositing over a photo (e.g. splash screens) -->
+  <g transform="translate(20,10)">
+    <!-- wheels -->
+    <circle cx="24" cy="132" r="30" fill="#0B0E0F"/>
+    <circle cx="24" cy="132" r="12" fill="#33383B"/>
+    <circle cx="200" cy="132" r="30" fill="#0B0E0F"/>
+    <circle cx="200" cy="132" r="12" fill="#33383B"/>
+
+    <!-- rear shock + frame -->
+    <path d="M24 132 L64 100" stroke="#0B0E0F" stroke-width="6" stroke-linecap="round"/>
+    <path d="M64 100 H150" stroke="#FFB300" stroke-width="10" stroke-linecap="round"/>
+    <path d="M150 100 L172 118 L200 132" stroke="#FFB300" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- seat -->
+    <rect x="72" y="93" width="88" height="14" rx="7" fill="#1A1A1A"/>
+    <!-- tank -->
+    <rect x="94" y="90" width="42" height="16" rx="8" fill="#FF7A00"/>
+    <!-- fork + handlebar -->
+    <path d="M172 118 L196 88" stroke="#0B0E0F" stroke-width="7" stroke-linecap="round"/>
+    <path d="M186 82 L210 78" stroke="#0B0E0F" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="200" cy="106" r="6" fill="#FFD54F"/>
+
+    <!-- passenger -->
+    <g>
+      <path d="M78 42 Q92 30 100 44 L96 74 Q86 80 76 74 Z" fill="#FF7A00"/>
+      <circle cx="88" cy="26" r="13" fill="#FF7A00"/>
+      <rect x="77" y="20" width="22" height="10" rx="5" fill="#C24E00"/>
+      <path d="M98 56 L126 66" stroke="#FF7A00" stroke-width="8" stroke-linecap="round"/>
+    </g>
+
+    <!-- driver -->
+    <g>
+      <rect x="112" y="30" width="30" height="46" rx="15" fill="#FFB300"/>
+      <circle cx="127" cy="26" r="13" fill="#FFB300"/>
+      <rect x="116" y="20" width="22" height="10" rx="5" fill="#C98600"/>
+      <path d="M132 48 L182 82" stroke="#FFB300" stroke-width="9" stroke-linecap="round"/>
+    </g>
+  </g>
+</svg>

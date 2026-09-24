@@ -1,4 +1,4 @@
-// Talks to the Monze Ride backend (see ../../../backend). Override the
+// Talks to the Monze Moto backend (see ../../../backend). Override the
 // target with VITE_API_BASE_URL for a non-local backend.
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 
