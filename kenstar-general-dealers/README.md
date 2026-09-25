@@ -17,9 +17,8 @@ A static, no-build-step website for Kenstar General Dealers (registered under PA
 
 ## Before publishing
 
-1. Replace the placeholder email (`info@kenstargeneraldealers.com`) and phone/WhatsApp number (`+260 XXX XXX XXX`) in `index.html` with your real contact details.
-2. Fill in real prices on the pricing cards, or keep "Contact for price" if you prefer quoting per client.
-3. Host it: any static host works (GitHub Pages, Netlify, Vercel, or a shared hosting plan).
+1. Fill in real prices on the pricing cards, or keep "Contact for price" if you prefer quoting per client.
+2. Host it: any static host works (GitHub Pages, Netlify, Vercel, or a shared hosting plan).
 
 ## Contact form (already wired up)
 
@@ -28,7 +27,7 @@ The contact form submits to [FormSubmit.co](https://formsubmit.co/), which forwa
 - **One-time activation:** the very first submission (from you, as a test) triggers a confirmation email from FormSubmit to monzemove@gmail.com. Click the "Activate Form" link in that email once — after that, every future submission is delivered straight to the inbox with no extra step.
 - The page uses FormSubmit's AJAX endpoint (`script.js`) so visitors see an inline "message sent" confirmation without leaving the page. If that request is ever blocked (e.g. by a browser extension), it automatically falls back to a normal form submission to the same address.
 - To send inquiries to a different or additional address later, update the email in the form's `action` attribute in `index.html` and the `AJAX_ENDPOINT` constant in `script.js`.
-- To route this to your own domain email later (e.g. `info@kenstargeneraldealers.com`) instead of a Gmail address, just swap the address in those same two places — FormSubmit works with any inbox.
+- To route this to your own domain email later (e.g. `info@kenstargeneraldealers.com`) instead of the current Gmail address, just swap the address in those same two places — FormSubmit works with any inbox.
 
 ## Local preview
 
