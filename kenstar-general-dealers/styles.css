@@ -103,25 +103,38 @@ h1, h2, h3 { font-family: var(--font-head); line-height: 1.2; margin: 0; }
 .nav-toggle { display: none; }
 
 /* Hero */
-.hero { padding: 72px 0 56px; background: linear-gradient(180deg, var(--paper-soft), var(--paper)); overflow: hidden; }
-.hero-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 32px; align-items: center; }
+.hero {
+  position: relative;
+  padding: 96px 0 72px;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    linear-gradient(115deg, rgba(8,16,28,0.94) 0%, rgba(8,16,28,0.82) 38%, rgba(8,16,28,0.55) 65%, rgba(8,16,28,0.35) 100%),
+    url("images/silos-hero.jpg");
+  background-size: cover;
+  background-position: center 62%;
+}
+.hero::after {
+  content: ""; position: absolute; inset: auto 0 0 0; height: 90px; z-index: 0;
+  background: linear-gradient(180deg, transparent, var(--paper));
+}
+.hero-grid { position: relative; z-index: 1; display: grid; grid-template-columns: 1.15fr 1fr; gap: 32px; align-items: center; }
 .hero-inner { max-width: 620px; }
+.hero h1, .hero-stats strong { color: #fff; }
+.hero .lede { color: rgba(255,255,255,0.82); }
+.hero-stats span { color: rgba(255,255,255,0.68); }
+.hero .btn-ghost { background: rgba(255,255,255,0.08); color: #fff; border-color: rgba(255,255,255,0.35); backdrop-filter: blur(6px); }
+.hero .btn-ghost:hover { background: rgba(255,255,255,0.16); }
 
 .hero-art { display: flex; justify-content: center; }
 .hero-art-svg { width: 100%; max-width: 420px; height: auto; }
-.hero-art .blob { opacity: 0.16; }
-.hero-art .blob-gold { fill: var(--gold-500); }
-.hero-art .blob-teal { fill: var(--teal-500); }
-.hero-art .blob-coral { fill: var(--coral-500); }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .hero-art .blob { opacity: 0.4; }
-}
-:root[data-theme="dark"] .hero-art .blob { opacity: 0.4; }
+.hero-art .blob { display: none; }
 
-.hero-card-bg { fill: var(--surface-raised); stroke: var(--line); stroke-width: 1.5; filter: drop-shadow(0 16px 30px rgba(11,30,53,0.16)); }
+.hero-card-bg { fill: rgba(255,255,255,0.96); stroke: rgba(255,255,255,0.6); stroke-width: 1.5; filter: drop-shadow(0 20px 40px rgba(0,0,0,0.35)); }
 .hero-card-avatar { fill: var(--gold-400); }
-.hero-card-line { fill: var(--ink); opacity: 0.85; }
-.hero-card-line-soft { fill: var(--line); }
+.hero-card-line { fill: #1b2430; opacity: 0.85; }
+.hero-card-line-soft { fill: #e4e7ee; }
+.hero-card-rule { stroke: #e4e7ee; }
 .hero-card-rule { stroke: var(--line); stroke-width: 1.5; }
 .hero-card-pill { fill: var(--teal-500); opacity: 0.15; }
 .hero-card-pill-icon { color: var(--teal-500); }
@@ -153,13 +166,13 @@ h1, h2, h3 { font-family: var(--font-head); line-height: 1.2; margin: 0; }
   text-transform: uppercase; color: var(--gold-500); margin-bottom: 14px;
 }
 .hero h1 { font-size: clamp(2.1rem, 5vw, 3.2rem); font-weight: 800; margin-bottom: 18px; }
-.hero .lede { font-size: 1.1rem; color: var(--muted); max-width: 620px; margin-bottom: 28px; }
+.hero .lede { font-size: 1.1rem; max-width: 620px; margin-bottom: 28px; }
 .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 40px; }
 
 .hero-stats { list-style: none; display: flex; gap: 32px; flex-wrap: wrap; padding: 0; margin: 0; }
 .hero-stats li { display: flex; flex-direction: column; gap: 4px; }
 .hero-stats strong { font-family: var(--font-head); font-size: 1rem; }
-.hero-stats span { color: var(--muted); font-size: 0.88rem; }
+.hero-stats span { font-size: 0.88rem; }
 
 /* Buttons */
 .btn {
