@@ -172,7 +172,11 @@
         <p class="contact-note">Update the email, phone, and WhatsApp details above with your real contact information before publishing this site.</p>
       </div>
 
-      <form class="contact-form" id="contactForm">
+      <form class="contact-form" id="contactForm" action="https://formsubmit.co/monzemove@gmail.com" method="POST">
+        <input type="hidden" name="_subject" value="New inquiry — Kenstar General Dealers website">
+        <input type="hidden" name="_template" value="table">
+        <input type="hidden" name="_honey" style="display:none">
+
         <label for="name">Full Name</label>
         <input type="text" id="name" name="name" required>
 
@@ -192,7 +196,7 @@
         <label for="message">Message</label>
         <textarea id="message" name="message" rows="4" required></textarea>
 
-        <button type="submit" class="btn btn-primary btn-block">Send Message</button>
+        <button type="submit" class="btn btn-primary btn-block" id="submitBtn">Send Message</button>
         <p class="form-status" id="formStatus" role="status"></p>
       </form>
     </div>

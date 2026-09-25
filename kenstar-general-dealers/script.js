@@ -15,10 +15,28 @@ nav.querySelectorAll("a").forEach((link) => {
 
 const form = document.getElementById("contactForm");
 const status = document.getElementById("formStatus");
-form.addEventListener("submit", (e) => {
+const submitBtn = document.getElementById("submitBtn");
+const AJAX_ENDPOINT = "https://formsubmit.co/ajax/monzemove@gmail.com";
+
+form.addEventListener("submit", async (e) => {
   e.preventDefault();
-  const name = form.name.value.trim();
-  const service = form.service.value;
-  status.textContent = `Thanks, ${name}! This form isn't wired to a backend yet — connect it to an email service or form handler before going live. Requested: ${service}.`;
-  form.reset();
+  submitBtn.disabled = true;
+  status.textContent = "Sending...";
+
+  try {
+    const res = await fetch(AJAX_ENDPOINT, {
+      method: "POST",
+      headers: { Accept: "application/json" },
+      body: new FormData(form),
+    });
+    if (!res.ok) throw new Error("Request failed");
+    status.textContent = "Thanks! Your message has been sent — we'll get back to you soon.";
+    form.reset();
+  } catch (err) {
+    status.textContent = "Couldn't send automatically — submitting the regular way instead...";
+    form.submit();
+    return;
+  } finally {
+    submitBtn.disabled = false;
+  }
 });
