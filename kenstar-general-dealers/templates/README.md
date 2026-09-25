@@ -27,7 +27,22 @@ Reusable Word templates for Kenstar General Dealers' CV and cover letter service
 2. Fill in the hiring manager/company details.
 3. Personalize each paragraph to the specific job posting and company — especially the "why this company" line.
 
+## `Interview_Prep_Notes_Template.docx`
+
+For clients after they've been called for an interview — delivered as a standalone briefing document, not tied to the CV/cover letter package.
+
+- Sections: Snapshot (logistics), Company Snapshot, Role Requirements Recap, Your Talking Points, Likely Questions & Answer Notes (Introductory, Behavioral/STAR, Role-Specific, Situational), Questions to Ask the Interviewer, Logistics Checklist, Day-Of Reminders.
+- Answer notes are structured around the **STAR method** (Situation, Task, Action, Result) for behavioral questions.
+
+**Per-client workflow:**
+1. Copy and rename, e.g. `InterviewPrep_JaneMwansa_CompanyX.docx`.
+2. Fill in interview logistics (date, time, format, interviewer names if known).
+3. Research the company (mission, recent news, culture) — this is what makes the prep feel tailored rather than generic.
+4. Pull the client's strongest achievements from their CV into "Your Talking Points," matched to the job requirements.
+5. Replace the role-specific/technical placeholder questions with ones likely for that actual role (e.g. a sales role gets pipeline/quota questions; a dev role gets technical/system-design questions).
+6. Fill in real "Notes" under each question with talking points drawn from the client's actual experience — not generic advice.
+
 ## Notes
 
-- Both files were generated programmatically and validated against the OOXML schema, but always open and proofread in Word/LibreOffice before sending to a client.
+- All three files were generated programmatically and validated against the OOXML schema, but always open and proofread in Word/LibreOffice before sending to a client.
 - Keep placeholder brackets `[ ]` intact only in the master templates — every client copy should have them fully replaced.
