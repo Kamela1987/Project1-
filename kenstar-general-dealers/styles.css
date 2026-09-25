@@ -270,7 +270,6 @@ h1, h2, h3 { font-family: var(--font-head); line-height: 1.2; margin: 0; }
 .contact-list li { display: flex; flex-direction: column; gap: 2px; }
 .contact-list span { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 .contact-list a { font-weight: 700; }
-.contact-note { margin-top: 24px; font-size: 0.85rem; color: var(--muted); border-left: 3px solid var(--gold-500); padding-left: 12px; }
 
 .contact-form {
   background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius);
