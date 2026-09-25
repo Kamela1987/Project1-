@@ -13,6 +13,7 @@ A static, no-build-step website for Kenstar General Dealers (registered under PA
 - `index.html` — page structure and content
 - `styles.css` — theme, layout, responsive styles (light/dark aware)
 - `script.js` — mobile nav toggle and contact form handling
+- `templates/` — reusable ATS CV and cover letter Word templates for client work (see `templates/README.md`)
 
 ## Before publishing
 
