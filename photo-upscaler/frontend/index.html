@@ -10,14 +10,14 @@
   <main>
     <header>
       <h1>Photo Upscaler</h1>
-      <p>Upload a photo. Get back a sharper, denoised, higher-resolution version with a
-        phone-style tone grade. This enhances detail with AI &mdash; it doesn't recover
-        information the original camera never captured.</p>
+      <p>Upload up to 50 photos at once. Get back sharper, denoised, higher-resolution
+        versions with a phone-style tone grade. This enhances detail with AI &mdash; it
+        doesn't recover information the original camera never captured.</p>
     </header>
 
     <section id="drop-zone" class="drop-zone">
-      <input id="file-input" type="file" accept="image/png, image/jpeg, image/webp" hidden />
-      <p id="drop-label">Drag & drop an image, or click to choose one</p>
+      <input id="file-input" type="file" accept="image/png, image/jpeg, image/webp" multiple hidden />
+      <p id="drop-label">Drag &amp; drop up to 50 images, or click to choose</p>
       <label class="checkbox">
         <input id="restore-faces" type="checkbox" checked />
         Restore faces (recommended for portraits)
@@ -26,21 +26,14 @@
 
     <section id="status" class="status" hidden></section>
 
-    <section id="result" class="result" hidden>
-      <div class="compare">
-        <figure>
-          <figcaption>Original</figcaption>
-          <img id="original-img" alt="Original upload" />
-        </figure>
-        <figure>
-          <figcaption>Enhanced</figcaption>
-          <img id="enhanced-img" alt="Enhanced result" />
-        </figure>
-      </div>
-      <a id="download-link" download="enhanced.jpg">Download enhanced image</a>
+    <section id="batch-actions" class="batch-actions" hidden>
+      <button id="download-all-btn" type="button">Download all as ZIP</button>
     </section>
+
+    <section id="queue" class="queue"></section>
   </main>
 
+  <script src="vendor/jszip.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
