@@ -73,6 +73,18 @@ upscaling to keep processing time bounded.
 
 `GET /api/health` — liveness check.
 
+## Batch upload
+
+The web UI accepts up to 50 images at once (drag-and-drop or multi-select).
+Each photo is sent to `/api/enhance` one at a time — the models aren't safe
+for concurrent calls on one process, so a large batch on CPU can take a
+while (see per-image timing above). Each photo's progress and result show
+up in the queue individually as it finishes, and a completed photo's
+"Download" link works right away without waiting on the rest of the batch.
+Once at least one photo is done, "Download all as ZIP" bundles every
+finished result client-side (via a vendored copy of JSZip in
+`frontend/vendor/`, no external CDN needed) into a single `.zip`.
+
 ## Limits / things to know
 
 - 4x upscale on a 2000px image produces an 8000px output — large files,
