@@ -1,0 +1,24 @@
+# Render blueprint for one-click deploy: https://render.com/docs/blueprint-spec
+# On render.com: New -> Blueprint -> point at this repo -> Render finds this
+# file automatically (it looks in the repo root, so copy/symlink it there,
+# or set "Root Directory" to monze_farm_link when creating the service by
+# hand instead of via blueprint).
+services:
+  - type: web
+    name: monze-farm-link
+    runtime: docker
+    rootDir: monze_farm_link
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite:////tmp/monze_farm_link.db
+    # Render runs the container under a non-root UID that doesn't own /app,
+    # so SQLite can't create its file there - hence /tmp, which is
+    # world-writable regardless of UID. This is ephemeral (wiped on every
+    # restart/redeploy, and free tier has no persistent disk anyway). If you
+    # attach a paid persistent disk (e.g. mounted at /var/data with
+    # permissions open to the container's runtime UID), point DATABASE_URL
+    # at that instead so data survives redeploys, or use managed Postgres
+    # for real production use.
