@@ -15,6 +15,10 @@ A static, no-build-step website for Kenstar General Dealers (registered under PA
 - `script.js` — mobile nav toggle and contact form handling
 - `templates/` — reusable ATS CV and cover letter Word templates for client work (see `templates/README.md`)
 
+## Brochure
+
+`images/kenstar-brochure.jpg` is rendered from `templates/brochure-source/brochure.html`. To change prices or wording, edit that file and run `NODE_PATH=/opt/node-tools/node_modules node templates/brochure-source/render.js` (needs Playwright with Chromium). The prices on the brochure and the website pricing section are draft starting prices; keep them in sync.
+
 ## Before publishing
 
 1. Fill in real prices on the pricing cards, or keep "Contact for price" if you prefer quoting per client.
